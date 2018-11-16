@@ -2002,3 +2002,347 @@ function Get-VIB
         }
     }
 }
+
+<#
+.SYNOPSIS
+Returns Path Selection Policy from DataStores
+.DESCRIPTION
+Produces an object of DataStore, PathSelectionPolicy, HostName, Device, WorkingPaths, and CapacityGB for all requested DataStores.
+Will check against every VMHost that has the DataStore Mounted.  Will return pipeline error if a non-VMFS DataStore is piped in.
+.PARAMETER DataStore
+Output from VMWare PowerCLI Get-DataStore.  VMFS datastores only.
+VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+.EXAMPLE
+Return an object for one DataStore into a variable:
+$MyVar = Get-Datastore -Name Storage01 | Get-PathSelectionPolicy
+.EXAMPLE
+Return an object for all VMFS DataStores mounted on a ESXi Host into a variable:
+$MyVar = Get-Datastore -VMHost ESX03 -Name * | Where-Object -Property Type -Match VMFS  | Get-PathSelectionPolicy
+.INPUTS
+Output from VMWare PowerCLI Get-DataStore - VMFS datastores only
+VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+.OUTPUTS
+[pscustomobject] SupSkiFun.PathSelectionInfo
+#>
+function Get-PathSelectionPolicy
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl[]]$DataStore
+    )
+
+    Process
+    {
+        MakeHash "ex"
+
+        foreach ($ds in $DataStore)
+        {
+            $device = $ds.ExtensionData.Info.Vmfs.Extent.Diskname
+            $devq = @{device = $device}
+            $dshosts = $ds.ExtensionData.host
+
+            foreach ($dsh in $dshosts)
+            {
+                $vmh = $exhash.$($dsh.key)
+                $e2 = Get-EsxCli -v2 -VMHost $vmh
+                $r2 = $e2.storage.nmp.device.list.Invoke($devq)
+
+                $lo = [pscustomobject]@{
+                    DataStore = $ds.Name
+                    PathSelectionPolicy = $r2.PathSelectionPolicy
+                    HostName = $vmh
+                    Device = $device
+                    WorkingPaths = $r2.WorkingPaths
+                    CapacityGB = $ds.CapacityGB
+                }
+
+                $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.PathSelectionInfo')
+                Write-Output $lo
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+Sets Path Selection Policy for DataStores
+.DESCRIPTION
+Sets Path Selection Policy to either Most Recently Used, Fixed, or Round Robin.  Does not attempt if the requested policy is already set.
+Produces an object of DataStore, PathSelectionPolicy, HostName, Device, SetPathStatus, WorkingPaths, and CapacityGB for all requested DataStores.
+Will check / set against every VMHost that has the DataStore Mounted.  Will return pipeline error if a non-VMFS DataStore is piped in.
+.PARAMETER DataStore
+Output from VMWare PowerCLI Get-DataStore.  VMFS datastores only.
+VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+.PARAMETER Policy
+Must be one of VMW_PSP_MRU, VMW_PSP_FIXED, or VMW_PSP_RR.  MRU = Most Recently Used, FIXED = Fixed, RR = Round Robin.
+.EXAMPLE
+Set Path Selection Policy for one Datastore to Round Robin, returning an object into a variable:
+$MyVar = Get-Datastore -Name VOL02 | Set-PathSelectionPolicy -Policy VMW_PSP_RR
+.EXAMPLE
+Set Path Selection Policy for all VMFS Datastores mounted on a ESXi Host to Most Recently Used, returning an object into a variable:
+$MyVar = Get-Datastore -VMHost ESX03 -Name * | Where-Object -Property Type -Match VMFS  | Set-PathSelectionPolicy -Policy VMW_PSP_MRU
+.INPUTS
+Output from VMWare PowerCLI Get-DataStore - VMFS datastores only
+VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+.OUTPUTS
+[pscustomobject] SupSkiFun.PathSelectionInfo
+#>
+function Set-PathSelectionPolicy
+{
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'high')]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl[]]$DataStore,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("VMW_PSP_MRU", "VMW_PSP_FIXED", "VMW_PSP_RR")]$Policy
+    )
+
+    Process
+    {
+
+        MakeHash "ex"
+
+        foreach ($ds in $DataStore)
+        {
+            if($PSCmdlet.ShouldProcess("$ds to $($policy)"))
+            {
+                $device = $ds.ExtensionData.Info.Vmfs.Extent.Diskname
+                $devq = @{device = $device}
+                $dshosts = $ds.ExtensionData.host
+
+                foreach ($dsh in $dshosts)
+                {
+                    $vmh = $exhash.$($dsh.key)
+                    $e2 = Get-EsxCli -v2 -VMHost $vmh
+                    $r2 = $e2.storage.nmp.device.list.Invoke($devq)
+
+                    if($r2.PathSelectionPolicy -notmatch $Policy)
+                    {
+                        $devset = @{device = $device ; psp = $Policy}
+                        $s2 = $e2.storage.nmp.device.set.Invoke($devset)
+
+                        if($s2 -match "true")
+                        {
+                            $status = "Success"
+                        }
+                        else
+                        {
+                            $status = "Unknown: Return value is $s2"
+                        }
+
+                        $r2 = $e2.storage.nmp.device.list.Invoke($devq)
+
+                    }
+                    elseif ($r2.PathSelectionPolicy -match $Policy)
+                    {
+                        $status = "Not Attempted; $policy is already set"
+                    }
+
+                    $lo = [pscustomobject]@{
+                        DataStore = $ds.Name
+                        PathSelectionPolicy = $r2.PathSelectionPolicy
+                        HostName = $vmh
+                        Device = $device
+                        SetPathStatus = $status
+                        WorkingPaths = $r2.WorkingPaths
+                        CapacityGB = $ds.CapacityGB
+                    }
+
+                    $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.PathSelectionInfo')
+                    Write-Output $lo
+                    $devset, $e2, $r2, $s2, $status, $vmh = $null
+                }
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+Installs VIB(s) on VMHost(s).
+.DESCRIPTION
+Installs VIB(s) on VMHost(s) and returns an object of HostName, Message, RebootRequired, VIBSInstalled, VIBSRemoved, and VIBSSkipped.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost.  See Examples.
+[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+.PARAMETER URL
+URL(s) for the VIB(s).  https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib , https://www.example.com/NetAppNasPlugin.v23.vib
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.VIBinfo
+.EXAMPLE
+Install one VIB to one VMHost, returning an object into a variable:
+$u = 'https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib'
+$MyVar = Get-VMHost -Name ESX02 | Install-VIB -URL $u
+.EXAMPLE
+Install two VIBs to two VMHosts, returning an object into a variable:
+$uu = 'https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib' , 'https://www.example.com/NetAppNasPlugin.v23.vib'
+$MyVar = Get-VMHost -Name ESX03 , ESX04 | Install-VIB -URL $uu
+#>
+function Install-VIB
+{
+    [CmdletBinding(SupportsShouldProcess=$true,
+    ConfirmImpact='high')]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$URL
+    )
+
+    Process
+    {
+        foreach ($vmh in $VMHost)
+        {
+            $cible = @{viburl = $URL}
+            if($PSCmdlet.ShouldProcess("$vmh installing $URL"))
+            {
+                $xcli = get-esxcli -v2 -VMHost $vmh
+                $res = $xcli.software.vib.install.invoke($cible)
+                $lo = [PSCustomObject]@{
+                    HostName = $vmh
+                    Message = $res.Message
+                    RebootRequired = $res.RebootRequired
+                    VIBsInstalled = $res.VIBsInstalled
+                    VIBsRemoved = $res.VIBsRemoved
+                    VIBsSkipped = $res.VIBsSkipped
+                }
+                $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.VIBinfo')
+                Write-Output $lo
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+Updates VIB(s) on VMHost(s).
+.DESCRIPTION
+Updates VIB(s) on VMHost(s) and returns an object of HostName, Message, RebootRequired, VIBSInstalled, VIBSRemoved, and VIBSSkipped.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost.  See Examples.
+[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+.PARAMETER URL
+URL(s) for the VIB(s).  https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib , https://www.example.com/VMware_bootbank_esx-base_6.7.0-0.20.9484548
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.VIBinfo
+.EXAMPLE
+Update one VIB on one VMHost, returning an object into a variable:
+$u = 'https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib'
+$MyVar = Get-VMHost -Name ESX02 | Install-VIB -URL $u
+.EXAMPLE
+Update two VIBs on two VMHosts, returning an object into a variable:
+$uu = 'https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib' , 'https://www.example.com/VMware_bootbank_esx-base_6.7.0-0.20.9484548'
+$MyVar = Get-VMHost -Name ESX03 , ESX04 | Install-VIB -URL $uu
+#>
+function Update-VIB
+{
+    [CmdletBinding(SupportsShouldProcess=$true,
+    ConfirmImpact='high')]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$URL
+    )
+
+    Process
+    {
+        foreach ($vmh in $VMHost)
+        {
+            $cible = @{viburl = $URL}
+            if($PSCmdlet.ShouldProcess("$vmh updating $URL"))
+            {
+                $xcli = get-esxcli -v2 -VMHost $vmh
+                $res = $xcli.software.vib.update.invoke($cible)
+                $lo = [PSCustomObject]@{
+                  HostName = $vmh
+                  Message = $res.Message
+                  RebootRequired = $res.RebootRequired
+                  VIBsInstalled = $res.VIBsInstalled
+                  VIBsRemoved = $res.VIBsRemoved
+                  VIBsSkipped = $res.VIBsSkipped
+              }
+              $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.VIBinfo')
+              Write-Output $lo
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+UnInstalls VIB(s) on VMHost(s).
+.DESCRIPTION
+UnInstalls VIB(s) on VMHost(s) and returns an object of HostName, Message, RebootRequired, VIBSInstalled, VIBSRemoved, and VIBSSkipped.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost.  See Examples.
+[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+.PARAMETER VIB
+Name(s) of VIBS to remove.  Example: NetAppNasPlugin , esx-ui
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.VIBinfo
+.EXAMPLE
+Uninstall one VIB from one VMHost, returning an object into a variable:
+$MyVar = Get-VMHost -Name ESX02 | UnInstall-VIB -VIB NetAppNasPlugin
+.EXAMPLE
+Uninstall two VIBs from two VMHosts, returning an object into a variable:
+$MyVar = Get-VMHost -Name ESX03 , ESX04 | UnInstall-VIB -VIB vsan , vmkfcoe
+#>
+function UnInstall-VIB
+{
+    [CmdletBinding(SupportsShouldProcess=$true,
+    ConfirmImpact='high')]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$VIB
+    )
+
+    Process
+    {
+        foreach ($vmh in $VMHost)
+        {
+            $cible = @{vibname = $VIB}
+            if($PSCmdlet.ShouldProcess("$vmh uninstalling $VIB"))
+            {
+                $xcli = get-esxcli -v2 -VMHost $vmh
+                $res = $xcli.software.vib.remove.invoke($cible)
+                $lo = [PSCustomObject]@{
+                    HostName = $vmh
+                    Message = $res.Message
+                    RebootRequired = $res.RebootRequired
+                    VIBsInstalled = $res.VIBsInstalled
+                    VIBsRemoved = $res.VIBsRemoved
+                    VIBsSkipped = $res.VIBsSkipped
+                }
+                $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.VIBinfo')
+                Write-Output $lo
+            }
+        }
+    }
+}
