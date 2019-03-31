@@ -210,6 +210,7 @@ function Get-DataStoreLunID
 			$e2 = Get-EsxCli -v2 -VMHost $exhash.$($n.ExtensionData.host[0].Key)
 			$ds = $n.ExtensionData.Info.Vmfs.Extent[0].DiskName
 			$li = $e2.storage.nmp.device.list.Invoke((@{'device'=$ds}))
+			# Just use [0] and skip if statement?
 			if($li.WorkingPaths.count -eq 1)
 			{
 				$ld = $li.WorkingPaths.ToString().Split(":")[3].Replace("L","")
