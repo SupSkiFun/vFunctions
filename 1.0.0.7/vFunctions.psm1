@@ -106,7 +106,7 @@ Requires piped output from Get-VMHost from the Vmware.PowerCLI module.
 .PARAMETER  VMHost
 Piped output of Get-VMHost from Vmware.PowerCLI
 .INPUTS
-Results of Get-VMHost: VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+Results of Get-VMHost: VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.VMHostInfo
 .EXAMPLE
@@ -129,7 +129,7 @@ function Format-VMHostPercentage
     param
     (
 		[Parameter(ValueFromPipeline=$true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost
 	)
 
     Process
@@ -163,9 +163,9 @@ Returns an object of Name, LUN, WorkingPaths, PathSelectionPolicy, Device and De
 Requires Pipleline input from VmWare Get-Datastore.
 .PARAMETER Name
 Requires Pipleline input from VmWare PowerCLI Get-Datastore.  Only VMFS DataStores accepted.  Alias DataStore.
-VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .INPUTS
-VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.LUNinfo
 .EXAMPLE
@@ -186,7 +186,7 @@ function Get-DataStoreLunID
     (
         [Parameter(ValueFromPipeline=$true)]
 		[Alias("DataStore")]
-		[VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl[]]$Name
+		[VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$Name
 	)
 
 	Begin
@@ -301,10 +301,10 @@ NicDriverDescription, NicDriverID, HbaDriverName, HbaDriverVersion, HbaDriverDes
 Specific to HPe and 650FLB.  Will not query other Hardware Brands or NICs.  If you get an error read it.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 [PSCUSTOMOBJECT] SupSkiFun.Info.650FLB
 .EXAMPLE
@@ -325,7 +325,7 @@ Function Get-Info650
     param
     (
         [Parameter(ValueFromPipeline = $true, Mandatory = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost
 	)
 
     begin
@@ -400,7 +400,7 @@ Produces an object of DataStore, PathSelectionPolicy, HostName, Device, WorkingP
 Will check against every VMHost that has the DataStore Mounted.  Will return pipeline error if a non-VMFS DataStore is piped in.
 .PARAMETER DataStore
 Output from VMWare PowerCLI Get-DataStore.  VMFS datastores only.
-VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .EXAMPLE
 Return an object for one DataStore into a variable:
 $MyVar = Get-Datastore -Name Storage01 | Get-PathSelectionPolicy
@@ -409,7 +409,7 @@ Return an object for all VMFS DataStores mounted on a ESXi Host into a variable:
 $MyVar = Get-Datastore -VMHost ESX03 -Name * | Where-Object -Property Type -Match VMFS  | Get-PathSelectionPolicy
 .INPUTS
 Output from VMWare PowerCLI Get-DataStore - VMFS datastores only
-VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .OUTPUTS
 [pscustomobject] SupSkiFun.PathSelectionInfo
 #>
@@ -420,7 +420,7 @@ function Get-PathSelectionPolicy
     Param
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl[]]$DataStore
+        [VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$DataStore
     )
 
     Process
@@ -554,12 +554,12 @@ By default returns an object of HostName, Name, ID, Vendor and Installed(Date) f
 Alternatively returns an object of multiple properties, for up to ten particular VIBs.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER Name
 Optional.  Provides more detailed information for up to ten particular VIBs.
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 [PSCUSTOMOBJECT] SupSkiFun.VIBinfo
 .EXAMPLE
@@ -575,7 +575,7 @@ function Get-VIB
     param
     (
 		[Parameter(ValueFromPipeline = $true, Mandatory = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 
         [Parameter(Mandatory = $false)]
         [ValidateCount(1,10)]
@@ -712,10 +712,10 @@ Returns object of VMHost, and Up Time in Days, Hours and Minutes.
 Requires input from Get-VMHost.  Alias = gvut
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.Uptime
 .EXAMPLE
@@ -735,7 +735,7 @@ function Get-VMHostUpTime
     param
     (
 		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost
 	)
 
 	Begin
@@ -776,7 +776,7 @@ Returns an object of World Wide Numbers from VMHost Fibre Channel HBAs
 VMHost Name(s) or VMHost Object from Vmware.PowerCLI
 .INPUTS
 VMHost Name(s) or VMHost Object from Vmware.PowerCLI
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.WWN
 .EXAMPLE
@@ -1089,14 +1089,14 @@ Returns an object of VMHosts and / or Clusters Names with Alarm Enabled Status.
 Requires VMHosts and / or Cluster objects to be piped in or specified as a parameter.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-Cluster
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER Cluster
 Output from VMWare PowerCLI Get-Cluster
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
 .INPUTS
 VMWare PowerCLI VMHost and / or Cluster Object from Get-VMHost and / or Get-Cluster:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
 .OUTPUTS
  PSCustomObject SupSkiFun.AlarmConfig
 .EXAMPLE
@@ -1121,10 +1121,10 @@ function Get-VSphereAlarmConfig
     param
     (
         [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 
 		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl[]]$Cluster)
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]]$Cluster)
 
     Begin
 	{
@@ -1316,12 +1316,12 @@ Installs VIB(s) on VMHost(s).
 Installs VIB(s) on VMHost(s) and returns an object of HostName, Message, RebootRequired, VIBSInstalled, VIBSRemoved, and VIBSSkipped.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER URL
 URL(s) for the VIB(s).  https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib , https://www.example.com/NetAppNasPlugin.v23.vib
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 [PSCUSTOMOBJECT] SupSkiFun.VIBinfo
 .EXAMPLE
@@ -1341,7 +1341,7 @@ function Install-VIB
     Param
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 
         [Parameter(Mandatory=$true)]
         [string[]]$URL
@@ -1483,8 +1483,8 @@ Piped output of Get-Cluster from Vmware.PowerCLI
 Piped output of Get-VMHost from Vmware.PowerCLI
 .INPUTS
 Results of Get-VMHost or Get-Cluster from Vmware.PowerCLI
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .OUTPUTS
 None
 .EXAMPLE
@@ -1509,11 +1509,11 @@ function Invoke-VMHostHBARescan
     (
         [Parameter(ParameterSetName="Cluster",
 			ValueFromPipeline=$true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl[]]$Cluster,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]]$Cluster,
 
 		[Parameter(ParameterSetName="VMHost",
 			ValueFromPipeline=$true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost
 	)
 
 	Process
@@ -1584,7 +1584,7 @@ Produces an object of DataStore, PathSelectionPolicy, HostName, Device, SetPathS
 Will check / set against every VMHost that has the DataStore Mounted.  Will return pipeline error if a non-VMFS DataStore is piped in.
 .PARAMETER DataStore
 Output from VMWare PowerCLI Get-DataStore.  VMFS datastores only.
-VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .PARAMETER Policy
 Must be one of VMW_PSP_MRU, VMW_PSP_FIXED, or VMW_PSP_RR.  MRU = Most Recently Used, FIXED = Fixed, RR = Round Robin.
 .EXAMPLE
@@ -1595,7 +1595,7 @@ Set Path Selection Policy for all VMFS Datastores mounted on a ESXi Host to Most
 $MyVar = Get-Datastore -VMHost ESX03 -Name * | Where-Object -Property Type -Match VMFS  | Set-PathSelectionPolicy -Policy VMW_PSP_MRU
 .INPUTS
 Output from VMWare PowerCLI Get-DataStore - VMFS datastores only
-VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl
+VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .OUTPUTS
 [pscustomobject] SupSkiFun.PathSelectionInfo
 #>
@@ -1606,7 +1606,7 @@ function Set-PathSelectionPolicy
     Param
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.DatastoreManagement.VmfsDatastoreImpl[]]$DataStore,
+        [VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$DataStore,
 
         [Parameter(Mandatory = $true)]
         [ValidateSet("VMW_PSP_MRU", "VMW_PSP_FIXED", "VMW_PSP_RR")]$Policy
@@ -1680,16 +1680,16 @@ Enables or Disables Alarms from VMHosts and Clusters.
 Requires VMHosts and / or Cluster objects to be piped in or specified as a parameter.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER Cluster
 Output from VMWare PowerCLI Get-Cluster
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
 .PARAMETER State
 Set for desired state of alarm; either Enabled or Disabled
 .INPUTS
 VMWare PowerCLI VMHost and / or Cluster Object from Get-VMHost and / or Get-Cluster:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
 .EXAMPLE
 Enable alarms for one VMHost:
 Get-VMHost -Name ESX01 | Set-VSphereAlarmConfig -State Enabled
@@ -1712,10 +1712,10 @@ function Set-VSphereAlarmConfig
     param
     (
 		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 
 		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl[]]$Cluster,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]]$Cluster,
 
 		[Parameter(Mandatory = $true)]
 		[ValidateSet("Enabled" , "Disabled")]
@@ -1785,10 +1785,10 @@ Returns an object of VM, Name, StartConnected, Connected, AllowGuestControl, Iso
 for submitted VMs that have a CD Drive Connected or configured to Start Connected.  Non-CD-Connected VMs are skipped.
 .PARAMETER VM
 Output from VMWare PowerCLI Get-VM.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.VM.UniversalVirtualMachineImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
 .INPUTS
 VMWare PowerCLI VM from Get-VM:
-[VMware.VimAutomation.ViCore.Impl.V1.VM.UniversalVirtualMachineImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
 .OUTPUTS
 [pscustomobject] SupSkiFun.VM.ConnectedCD.Info
 .EXAMPLE
@@ -1808,7 +1808,7 @@ Function Show-ConnectedCD
     Param
     (
         [Parameter(Mandatory = $true , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.VM.UniversalVirtualMachineImpl[]]$VM
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]]$VM
     )
 
     Process
@@ -1904,12 +1904,12 @@ Returns an object of ItemName, ItemType, ItemMoRef, FolderName, FolderId, and Fo
 Item properties are the contents of the folder.  Folder properties elucidate folder information.
 .PARAMETER Folder
 Output from VMWare PowerCLI Get-Folder.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Folder]
 .PARAMETER Recurse
 If specified will recurse all subfolders of specified folder.
 .INPUTS
 VMWare PowerCLI Folder from Get-Folder:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Folder]
 .OUTPUTS
 [pscustomobject] SupSkiFun.VSphereFolderInfo
 .EXAMPLE
@@ -1935,7 +1935,7 @@ Function Show-FolderContent
     Param
     (
         [Parameter(Mandatory = $true , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl[]]$Folder,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Folder[]]$Folder,
 
         [Switch]$Recurse
     )
@@ -2011,10 +2011,10 @@ Returns an object of Name, Id, Path, and Type for specified Vsphere Folders.  If
 they will all be returned with differing Ids and Paths listed.
 .PARAMETER Folder
 Output from VMWare PowerCLI Get-Folder.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Folder]
 .INPUTS
 VMWare PowerCLI Folder from Get-Folder:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.Folder]
 .OUTPUTS
 [pscustomobject] SupSkiFun.VSphereFolderInfo
 .EXAMPLE
@@ -2034,7 +2034,7 @@ Function Show-FolderPath
     Param
     (
         [Parameter(Mandatory = $true , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.FolderImpl[]]$Folder
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Folder[]]$Folder
     )
 
     Process
@@ -2069,14 +2069,14 @@ Returns an object of RDMs listing DevfsPath, Device, DisplayName, IsPerenniallyR
 Status, VAAIStatus, Vendor, HostName and VM (when VM is specified) from VMs or VMHosts.  Alias srdm.
 .PARAMETER VM
 VMWare PowerCLI VM Object from Get-VM
-VMware.VimAutomation.ViCore.Impl.V1.VM.UniversalVirtualMachineImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine
 .PARAMETER VMHost
 VMWare PowerCLI VMHost Object from Get-VMHost
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .INPUTS
 VMWare PowerCLI VM or VMHost Object from Get-VM or Get-VMHost:
-VMware.VimAutomation.ViCore.Impl.V1.VM.UniversalVirtualMachineImpl
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.RDMinfo
 .EXAMPLE
@@ -2102,13 +2102,13 @@ function Show-RDM
 			ParameterSetName = "VM",
 			ValueFromPipeline = $true
 		)]
-		[VMware.VimAutomation.ViCore.Impl.V1.VM.UniversalVirtualMachineImpl[]]$VM,
+		[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]]$VM,
 
         [Parameter(
 			ParameterSetName = "VMHost",
 			ValueFromPipeline = $true
 		)]
-		[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost
+		[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost
 	)
 
     Begin
@@ -2302,10 +2302,10 @@ Obtains basic network settings from VMHost(s)
 Returns an object of HostName, IP, NTPServer, DNSServer, SearchDomain and IPv6Enabled from VMHosts
 .PARAMETER VMHost
 VMWare PowerCLI VMHost Object from Get-VMHost
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .INPUTS
 VMHost Object from Get-VMHost:
-VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.VMHostNetworkInfo
 .EXAMPLE
@@ -2322,7 +2322,7 @@ function Show-VMHostNetworkInfo
     param
     (
         [Parameter(ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost
 	)
 
     Process
@@ -2362,12 +2362,12 @@ Requires input from Get-VMHost.  Alias = svvpg
 Optionally return MTU and Number of Ports from the Vswitch with the -Full Parameter
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER Full
 Optional.  If specified returns MTU and Number of Ports, in addition to the default output.
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.PortGroupInfo
 .EXAMPLE
@@ -2390,7 +2390,7 @@ function Show-VMHostVirtualPortGroup
     param
     (
 		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 		[switch]$Full
  	)
 
@@ -2679,12 +2679,12 @@ UnInstalls VIB(s) on VMHost(s).
 UnInstalls VIB(s) on VMHost(s) and returns an object of HostName, Message, RebootRequired, VIBSInstalled, VIBSRemoved, and VIBSSkipped.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER VIB
 Name(s) of VIBS to remove.  Example: NetAppNasPlugin , esx-ui
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 [PSCUSTOMOBJECT] SupSkiFun.VIBinfo
 .EXAMPLE
@@ -2702,7 +2702,7 @@ function UnInstall-VIB
     Param
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 
         [Parameter(Mandatory=$true)]
         [string[]]$VIB
@@ -2739,12 +2739,12 @@ Updates VIB(s) on VMHost(s).
 Updates VIB(s) on VMHost(s) and returns an object of HostName, Message, RebootRequired, VIBSInstalled, VIBSRemoved, and VIBSSkipped.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER URL
 URL(s) for the VIB(s).  https://www.example.com/VMware_bootbank_vsanhealth_6.5.0-2.57.9183449.vib , https://www.example.com/VMware_bootbank_esx-base_6.7.0-0.20.9484548
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
-[VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
 [PSCUSTOMOBJECT] SupSkiFun.VIBinfo
 .EXAMPLE
@@ -2764,7 +2764,7 @@ function Update-VIB
     Param
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
 
         [Parameter(Mandatory=$true)]
         [string[]]$URL
