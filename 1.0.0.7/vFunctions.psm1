@@ -272,7 +272,7 @@ function Get-DataStorePercentageFree
 			ValueFromPipeline = $true,
 			HelpMessage = "Pipe DataStore Object(s) from Get-Datastore")]
 		[Alias("DataStore")]
-        [PSObject[]]$Name
+		[VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.Datastore][]$Name
 	)
 
 	Process
