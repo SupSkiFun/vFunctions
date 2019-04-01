@@ -159,21 +159,21 @@ function Format-VMHostPercentage
 .SYNOPSIS
 Obtains LUN of DataStore(s).
 .DESCRIPTION
-Returns an object of Name, LUN, WorkingPaths, PathSelectionPolicy, Device and DeviceDisplayName of Datastore(s).
-Requires Pipleline input from VmWare Get-Datastore.
+Returns an object of Name, LUN, WorkingPaths, PathSelectionPolicy, Device and DeviceDisplayName of VMFS Datastore(s).
+Requires Pipleline input from VmWare Get-Datastore.  Will only process VMFS; NFS will not be accepted.
 .PARAMETER Name
-Requires Pipleline input from VmWare PowerCLI Get-Datastore.  Only VMFS DataStores accepted.  Alias DataStore.
+Requires Pipleline input from VmWare PowerCLI Get-Datastore.  Only VMFS DataStores accepted.
 VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .INPUTS
 VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.LUNinfo
 .EXAMPLE
-Retrieve information from one DataStore:
+Retrieve information from one VMFS DataStore:
 Get-DataStore -Name Dstore01 | Get-DataStoreLunID
 .EXAMPLE
-Return an object of multiple DataStores into a variable, using the Get-DataStoreLunID alias:
-$MyVar = Get-Datastore -Name Dstore* | gdli
+Return an object of multiple VMFS DataStores into a variable, using the Get-DataStoreLunID alias:
+$MyVar = Get-Datastore -Name Dstore* | Where-Object -Property Type -Match "VMFS" | gdli
 .EXAMPLE
 Query all VMFS DataStores of an ESX host, returning the object into a variable:
 $MyVar = Get-Datastore -VMHost ESX01 | Where-Object -Property Type -Match "VMFS" | Get-DataStoreLunID
@@ -184,51 +184,58 @@ function Get-DataStoreLunID
     [Alias("gdli")]
     param
     (
-        [Parameter(ValueFromPipeline=$true)]
-		[Alias("DataStore")]
-		[VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$Name
+    [Parameter(ValueFromPipeline=$true, Mandatory = $true)]
+	[VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$Name
 	)
-
-	Begin
-    {
-		$errmsg = "VMFS Datastore Object Required.  Try:  Help Get-DataStoreLunID -Full"
-    }
 
     Process
     {
-		If(!($name))
+		function MakeObj
 		{
-			Write-Output $errmsg
-			break
+        param ($lun, $luninfo=$null)
+
+        $loopobj = [pscustomobject]@{
+            Name = $n.Name
+            Lun = $lun
+            WorkingPaths = $luninfo.WorkingPaths
+            PathSelectionPolicy = $luninfo.PathSelectionPolicy
+            Device = $luninfo.Device
+            DeviceDisplayName = $luninfo.DeviceDisplayName
+        }
+        $loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.LUNinfo')
+        $loopobj
 		}
 
-		MakeHash "ex"
+        MakeHash "ex"
 
 		foreach ($n in $name)
 		{
-			# Need to replace the below hardcode [0] with a random and try/catch?
-			$e2 = Get-EsxCli -v2 -VMHost $exhash.$($n.ExtensionData.host[0].Key)
-			$ds = $n.ExtensionData.Info.Vmfs.Extent[0].DiskName
-			$li = $e2.storage.nmp.device.list.Invoke((@{'device'=$ds}))
-			# Just use [0] and skip if statement?
-			if($li.WorkingPaths.count -eq 1)
-			{
-				$ld = $li.WorkingPaths.ToString().Split(":")[3].Replace("L","")
-			}
-			else
-			{
-				$ld = $li.WorkingPaths[0].ToString().Split(":")[3].Replace("L","")
-			}
-			$loopobj = [pscustomobject]@{
-					Name = $n.Name
-					Lun = $ld
-					WorkingPaths = $li.WorkingPaths
-					PathSelectionPolicy = $li.PathSelectionPolicy
-					Device = $li.Device
-					DeviceDisplayName = $li.DeviceDisplayName
-				}
-			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.LUNinfo')
-			$loopobj
+            $ds, $e2, $hs, $li, $ld = $null
+            $hs = $n.ExtensionData.host
+            foreach ($h in $hs)
+            {
+                $e2 = Get-EsxCli -v2 -VMHost $exhash.$($h.key) -ErrorAction SilentlyContinue
+                if ($e2)
+                {
+                    $ds = $n.ExtensionData.Info.Vmfs.Extent[0].DiskName
+                    $li = $e2.storage.nmp.device.list.Invoke((@{'device'=$ds}))
+
+                    if ($li.WorkingPaths.count -eq 1)
+                    {
+                        $ld = $li.WorkingPaths.ToString().Split(":")[3].Replace("L","")
+                    }
+                    else
+                    {
+                        $ld = $li.WorkingPaths[0].ToString().Split(":")[3].Replace("L","")
+                    }
+
+                    MakeObj -lun $ld -luninfo $li
+                    break
+                }
+
+                $ld = "Error Connecting to VMHosts"
+                MakeObj -lun $ld -luninfo $li
+            }
 		}
 	}
 }
