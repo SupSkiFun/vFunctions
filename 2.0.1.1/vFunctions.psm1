@@ -301,6 +301,64 @@ function Get-DataStorePercentageFree
 
 <#
 .SYNOPSIS
+Retrieves install information from a running ESXi image on a VMHost.
+.DESCRIPTION
+Retrieves install information from a running ESXi image on a VMHost.
+Returns an object of HostName, Profile, Created, Vendor, Description, and VIBs.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost.  See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.ESXi.Info
+.EXAMPLE
+Retrieve information from one VMHost, returning an object into a variable:
+$MyVar = Get-VMHost -Name ESX01 | Get-ESXiInfo
+.EXAMPLE
+Retrieve information from two VMHosts, returning an object into a variable:
+$MyVar = Get-VMHost -Name ESX02 , ESX03 | Get-ESXiInfo
+#>
+function Get-ESXiInfo
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
+    )
+
+    Process
+    {
+        Function MakeObj
+        {
+            param($vhdata,$resdata)
+
+            $lo = [PSCustomObject]@{
+                HostName = $vhdata
+                Profile = $resdata.Name.Replace("(Updated)","").Trim()
+                Created = $resdata.CreationTime
+                Vendor = $resdata.Vendor
+                Description = $resdata.Description
+                VIBs = $resdata.Vibs
+            }
+            $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.ESXi.Info')
+            $lo
+        }
+
+        foreach ($vmh in $VMHost)
+        {
+                $xcli = Get-EsxCli -V2 -VMHost $vmh
+                $resp = $xcli.software.profile.get.Invoke()
+                MakeObj -vhdata $vmh.Name -resdata $resp
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Retrieves HPe 650FLB Firmware and VIBs from VMHost(s).
 .DESCRIPTION
 Queries a VmHost for the firmware and drivers (elxnet , brcmfcoe) of a 650FLB Adapter.
@@ -2622,6 +2680,63 @@ function Show-SS
 			$esxcli.network.ip.connection.list.invoke()
 		}
 	}
+}
+
+<#
+.SYNOPSIS
+Retrieves detailed information from submitted tasks.
+.DESCRIPTION
+Retrieves detailed information from submitted tasks.  Returns an object of Name, Description,
+ID, State, IsCancelable, PercentComplete, Start, Finish, UserName, EntityName, and EntityID.
+.PARAMETER Task
+Output from VMWare PowerCLI Get-Task.  See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Task]
+.INPUTS
+VMWare PowerCLI Task from Get-Task:
+[VMware.VimAutomation.ViCore.Types.V1.Task]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.Task.Info
+.EXAMPLE
+Retrieve information from all running tasks, returning an object into a variable:
+$MyVar = Get-Task -Status Running | Show-TaskInfo
+.EXAMPLE
+Retrieve information from all relocation tasks, returning an object into a variable:
+$MyVar = Get-Task | Where-Object -Property Name -Match reloc | Show-TaskInfo
+.EXAMPLE
+Retrieve information from all recent tasks, returning an object into a variable:
+$MyVar = Get-Task | Show-TaskInfo
+#>
+function Show-TaskInfo
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Task[]] $Task
+    )
+
+    Process
+    {
+        foreach ($t in $task)
+        {
+            $lo = [pscustomobject]@{
+                Name = $t.Name
+                Description = $t.Description
+                ID = $t.Id
+                State = $t.State
+                IsCancelable = $t.IsCancelable
+                PercentComplete = $t.PercentComplete
+                Start = $t.StartTime
+                Finish = $t.FinishTime
+                UserName = $t.ExtensionData.Info.Reason.UserName
+                EntityName = $t.ExtensionData.Info.EntityName
+                EntityID = $t.ExtensionData.Info.Entity
+            }
+            $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.Task.Info')
+            $lo
+        }
+    }
 }
 
 <#
