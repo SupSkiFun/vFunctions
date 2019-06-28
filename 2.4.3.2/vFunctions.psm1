@@ -1,45 +1,4 @@
-# MakeHash is a helper which makes hash tables for VM or ESXi or DStore
-Function MakeHash([string]$quoi)
-{
-	switch ($quoi)
-	{
-		'vm'
-		{
-			$vmq = Get-VM -Name *
-			$vmhash = @{}
-			$script:vmhash = foreach ($v in $vmq)
-			{
-				@{
-					$v.id = $v.name
-				}
-			}
-		}
-
-		'ex'
-		{
-			$exq = Get-VMHost -Name *
-			$exhash = @{}
-			$script:exhash = foreach ($e in $exq)
-			{
-				@{
-					$e.id = $e.name
-				}
-			}
-		}
-
-		'ds'
-		{
-			$dsq = Get-Datastore -Name *
-			$dshash = @{}
-			$script:dshash = foreach ($d in $dsq)
-			{
-				@{
-					$d.id = $d.name
-				}
-			}
-		}
-	}
-}
+using module .\vClass.psm1
 
 <#
 .SYNOPSIS
@@ -188,6 +147,11 @@ function Get-DataStoreLunID
 	[VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$Name
 	)
 
+    Begin
+    {
+        $exhash = [vClass]::MakeHash('ex')
+    }
+
     Process
     {
 		function MakeObj
@@ -206,15 +170,13 @@ function Get-DataStoreLunID
         $loopobj
 		}
 
-        MakeHash "ex"
-
 		foreach ($n in $name)
 		{
             $ds, $e2, $hs, $li, $ld = $null
             $hs = $n.ExtensionData.host
             foreach ($h in $hs)
             {
-                $e2 = Get-EsxCli -v2 -VMHost $exhash.$($h.key) -ErrorAction SilentlyContinue
+                $e2 = Get-EsxCli -v2 -VMHost $exhash.$($h.key.ToString()) -ErrorAction SilentlyContinue
                 if ($e2)
                 {
                     $ds = $n.ExtensionData.Info.Vmfs.Extent[0].DiskName
@@ -489,10 +451,13 @@ function Get-PathSelectionPolicy
         [VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$DataStore
     )
 
+    Begin
+    {
+        $exhash = [vClass]::MakeHash('ex')
+    }
+
     Process
     {
-        MakeHash "ex"
-
         foreach ($ds in $DataStore)
         {
             $device = $ds.ExtensionData.Info.Vmfs.Extent.Diskname
@@ -501,7 +466,7 @@ function Get-PathSelectionPolicy
 
             foreach ($dsh in $dshosts)
             {
-                $vmh = $exhash.$($dsh.key)
+                $vmh = $exhash.$($dsh.key.ToString())
                 $e2 = Get-EsxCli -v2 -VMHost $vmh
                 $r2 = $e2.storage.nmp.device.list.Invoke($devq)
 
@@ -2044,11 +2009,13 @@ function Set-PathSelectionPolicy
         [ValidateSet("VMW_PSP_MRU", "VMW_PSP_FIXED", "VMW_PSP_RR")]$Policy
     )
 
+    Begin
+    {
+        $exhash = [vClass]::MakeHash('ex')
+    }
+
     Process
     {
-
-        MakeHash "ex"
-
         foreach ($ds in $DataStore)
         {
             if($PSCmdlet.ShouldProcess("$ds to $($policy)"))
@@ -2059,7 +2026,7 @@ function Set-PathSelectionPolicy
 
                 foreach ($dsh in $dshosts)
                 {
-                    $vmh = $exhash.$($dsh.key)
+                    $vmh = $exhash.$($dsh.key.ToString())
                     $e2 = Get-EsxCli -v2 -VMHost $vmh
                     $r2 = $e2.storage.nmp.device.list.Invoke($devq)
 
@@ -2367,7 +2334,7 @@ function Show-DrsRule
 
     Begin
     {
-		MakeHash "vm"
+		$vmhash = [vClass]::MakeHash('vm')
     }
 
     Process
@@ -2886,7 +2853,6 @@ function Show-VMHostNetworkInfo
 			}
 			$lo = [pscustomobject]@{
 				HostName = $vmh.Name
-				#IP = $n.VirtualNic.IP property will be deprecated.
 				IP = $ipv
 				NTPServer = $p
 				DNSServer = $n.DnsAddress
@@ -2902,85 +2868,41 @@ function Show-VMHostNetworkInfo
 <#.Synopsis
 Obtains Port Groups from ESXi Hosts
 .DESCRIPTION
-Returns an object of PortGroups, Hostname(s), Vswitches and VLANs from ESXi Hosts by default.
-Requires input from Get-VMHost.  Alias = svvpg
-Optionally return MTU and Number of Ports from the Vswitch with the -Full Parameter
+Returns an object of PortGroup, VLAN, HostName, Vswitch, VswitchMTU, and VswitchPorts.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
-.PARAMETER Full
-Optional.  If specified returns MTU and Number of Ports, in addition to the default output.
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
-PSCUSTOMOBJECT SupSkiFun.PortGroupInfo
+PSCUSTOMOBJECT SupSkiFun.PortGroup.Info
 .EXAMPLE
 Return Port Group Object from one ESXi Host:
 Get-VMHost -Name ESX01 | Show-VMHostVirtualPortGroup
 .EXAMPLE
 Place Port Group Object from two ESXi Hosts into a variable:
 $MyVar = Get-VMHost -Name ESX03, ESX04 | Show-VMHostVirtualPortGroup
-.EXAMPLE
-Place Port Group Object from multiple ESXi Hosts into a variable using the Show-VMHostVirtualPortGroup alias:
-$MyVar = Get-VMHost -Location CLUSTER04 | svvpg
-.EXAMPLE
-Include MTU and Port Number with the default output using the -Full Parameter:
-$MyVar = Get-VMHost -Name ESX07 | Show-VMHostVirtualPortGroup -Full
 #>
 function Show-VMHostVirtualPortGroup
 {
     [CmdletBinding()]
-    [Alias("svvpg")]
+
     param
     (
-		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
-		[switch]$Full
+		[Parameter(Mandatory = $true , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
  	)
-
-	    Begin
-    {
-		$errmsg = "VMHost Object Required.  Try:  Help Show-VMHostVirtualPortGroup -full"
-    }
 
     Process
     {
-		If(!($vmhost))
-		{
-			Write-Output $errmsg
-			break
-		}
-
-		MakeHash "ex"
 		$vpg = $vmhost |
-			Get-VirtualPortGroup -Name *
-
-		foreach ($vp in $vpg)
-		{
-			if($full)
-			{
-				$loopobj = [pscustomobject]@{
-					PortGroup = $vp.Name
-					VLAN = $vp.VLanId
-					HostName = $exhash.($vp.VMHostId)
-					Vswitch = $vp.VirtualSwitchName
-					VswitchMTU = $vp.VirtualSwitch.MTU
-					VswitchPorts = $vp.VirtualSwitch.NumPorts
-				}
-			}
- 			else
-			{
-				$loopobj = [pscustomobject]@{
-					PortGroup = $vp.Name
-					VLAN = $vp.VLanId
-					Vswitch = $vp.VirtualSwitchName
-					HostName = $exhash.($vp.VMHostId)
-				}
-			}
-		$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroupInfo')
-		$loopobj
-		}
+            Get-VirtualPortGroup -Name *
+        foreach ($vp in $vpg)
+        {
+           $lo =  [vClass]::MakeObjSVVPG($vp)
+           $lo
+        }
     }
 }
 
