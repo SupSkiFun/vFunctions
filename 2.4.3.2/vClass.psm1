@@ -4,7 +4,7 @@ class vClass
     {
         $src = $null
         $shash = @{}
-        
+
         switch ($quoi)
         {
             ds { $src = Get-Datastore -Name * }
@@ -30,7 +30,7 @@ class vClass
             VswitchMTU = $vp.VirtualSwitch.MTU
             VswitchPorts = $vp.VirtualSwitch.NumPorts
 		}
-		$lo.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroupInfo')
+		$lo.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroup.Info')
 		return $lo
     }
 }
