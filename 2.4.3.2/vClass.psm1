@@ -3,7 +3,6 @@ class vClass
     <# MakeHash is a helper which makes hash tables for VM or ESXi or DStore #>
     static [hashtable] MakeHash( [string] $quoi )
     {
-        [string] [ValidateSet('ds' , 'ex' , 'vm')] $quoi
         $src = $null
         $shash = @{}
         
