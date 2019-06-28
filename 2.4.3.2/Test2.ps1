@@ -2,14 +2,10 @@ using module .\vClass.psm1
 <#.Synopsis
 Obtains Port Groups from ESXi Hosts
 .DESCRIPTION
-Returns an object of PortGroups, Hostname(s), Vswitches and VLANs from ESXi Hosts by default.
-Requires input from Get-VMHost.  Alias = svvpg
-Optionally return MTU and Number of Ports from the Vswitch with the -Full Parameter
+Returns an object of PortGroup, VLAN, HostName, Vswitch, VswitchMTU, and VswitchPorts.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
-.PARAMETER Full
-Optional.  If specified returns MTU and Number of Ports, in addition to the default output.
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
@@ -21,59 +17,26 @@ Get-VMHost -Name ESX01 | Show-VMHostVirtualPortGroup
 .EXAMPLE
 Place Port Group Object from two ESXi Hosts into a variable:
 $MyVar = Get-VMHost -Name ESX03, ESX04 | Show-VMHostVirtualPortGroup
-.EXAMPLE
-Place Port Group Object from multiple ESXi Hosts into a variable using the Show-VMHostVirtualPortGroup alias:
-$MyVar = Get-VMHost -Location CLUSTER04 | svvpg
-.EXAMPLE
-Include MTU and Port Number with the default output using the -Full Parameter:
-$MyVar = Get-VMHost -Name ESX07 | Show-VMHostVirtualPortGroup -Full
 #>
 function Test-VMHostVirtualPortGroup   #Show-VMHostVirtualPortGroup
 {
     [CmdletBinding()]
-    [Alias("svvpg")]
+
     param
     (
-		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost,
-		[switch]$Full
+		[Parameter(Mandatory = $true , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
  	)
-
-	    Begin
-    {
-        $exhash = [vClass]::MakeHash('ex')
-    }
 
     Process
     {
 		$vpg = $vmhost |
-			Get-VirtualPortGroup -Name *
-
-		foreach ($vp in $vpg)
-		{
-			if($full)
-			{
-				$loopobj = [pscustomobject]@{
-					PortGroup = $vp.Name
-					VLAN = $vp.VLanId
-					HostName = $exhash.($vp.VirtualSwitch.VMHostId)
-					Vswitch = $vp.VirtualSwitchName
-					VswitchMTU = $vp.VirtualSwitch.MTU
-					VswitchPorts = $vp.VirtualSwitch.NumPorts
-				}
-			}
- 			else
-			{
-				$loopobj = [pscustomobject]@{
-					PortGroup = $vp.Name
-					VLAN = $vp.VLanId
-					Vswitch = $vp.VirtualSwitchName
-					HostName = $exhash.($vp.VirtualSwitch.VMHostId)
-				}
-			}
-		$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroupInfo')
-		$loopobj
-		}
+            Get-VirtualPortGroup -Name *
+        foreach ($vp in $vpg)
+        {
+           $lo =  [vClass]::MakeObjSVVPG($vp)
+           $lo
+        }
     }
 }
 

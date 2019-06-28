@@ -1,6 +1,5 @@
 class vClass
 {
-    <# MakeHash is a helper which makes hash tables for VM or ESXi or DStore #>
     static [hashtable] MakeHash( [string] $quoi )
     {
         $src = $null
@@ -18,5 +17,20 @@ class vClass
             $shash.add($s.Id , $s.Name)
         }
         return $shash
-    } 
+    }
+
+    static [pscustomobject] MakeObjSVVPG( [psobject[]] $vp )
+    {
+        $lo = $null
+		$lo = [pscustomobject]@{
+            PortGroup = $vp.Name
+            VLAN = $vp.VLanId
+            HostName = $vp.VirtualSwitch.VMHost.Name
+            Vswitch = $vp.VirtualSwitchName
+            VswitchMTU = $vp.VirtualSwitch.MTU
+            VswitchPorts = $vp.VirtualSwitch.NumPorts
+		}
+		$lo.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroupInfo')
+		return $lo
+    }
 }
