@@ -263,6 +263,66 @@ function Get-DataStorePercentageFree
 
 <#
 .SYNOPSIS
+Retrieves file systems of the VMHost HyperVisor.
+.DESCRIPTION
+By default, retrieves file systems of the VMHost HyperVisor.  If an optional pattern is specified
+only file systems matching the pattern are retrieved; akin to -match.
+Returns an object of HostName, MountPoint, PercentFree, Maximum, Used, and RamDiskName.
+.PARAMETER VMHost
+Mandatory. Output from VMWare PowerCLI Get-VMHost. See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.PARAMETER Pattern
+Optional. If specified only returns mount points matching the pattern; akin to -match.  See Examples.
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.OUTPUTS
+PSCUSTOMOBJECT SupSkiFun.ESXi.HyperVisorFS.Info
+.EXAMPLE
+Returns an object of all HyperVisor File Systems from one VMHost:
+Get-VMHost -Name ESX01 | Get-ESXiHyperVisorFS
+.EXAMPLE
+Returns an object of HyperVisor File Systems with a mount point matching "tmp" from two VMHosts:
+Get-VMHost -Name ESX02 , ESX03 | Get-ESXiHyperVisorFS -Pattern tmp
+.EXAMPLE
+Returns an object of all HyperVisor File Systems from all VMHosts in a cluster, into a variable:
+$myVar = Get-VMHost -Location CLUS01 | Get-ESXiHyperVisorFS
+#>
+Function Get-ESXiHyperVisorFS
+{
+    [CmdletBinding()]
+    Param
+    (
+        [Parameter(ValueFromPipeline = $True, Mandatory = $True)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost,
+
+        [string] $Pattern
+    )
+
+    Process
+    {
+        foreach ($vmh in $vmhost)
+        {
+            $x2 = Get-EsxCli -V2 -VMHost $vmh
+            if (-not($pattern))
+            {
+                $z2 = $x2.system.visorfs.ramdisk.list.Invoke()
+            }
+            else
+            {
+                $z2 = $x2.system.visorfs.ramdisk.list.Invoke().where({$_.MountPoint -match $Pattern})
+            }
+            foreach ($z in $z2)
+            {
+                $lo = [VClass]::MakeVFSObj($vmh.Name , $z)
+                $lo
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Retrieves install information from a running ESXi image on a VMHost.
 .DESCRIPTION
 Retrieves install information from a running ESXi image on a VMHost.
@@ -2307,7 +2367,7 @@ Outputs DRS rules for specified clusters
 Outputs an object of DRS Rule Name, cluster, VMIds, VM Name, Type and Enabled for specified clusters.
 Alias = sdr
 .PARAMETER Cluster
-Mandatory.  Cluster(s) to query for DRS rules.  Can manually enter or pipe output from VmWare Get-Cluster.
+Mandatory. Cluster(s) to query for DRS rules. Can manually enter or pipe output from VmWare Get-Cluster.
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.PortGroupInfo
 .EXAMPLE
@@ -2317,47 +2377,35 @@ $MyVar = Show-DrsRule -Cluster cluster09
 Retrieve DRS rules for all clusters, using the Show-DrsRule alias, placing the object into a variable:
 $MyVar = Get-Cluster -Name * | sdr
 #>
-function Show-DrsRule
+Function Show-DrsRule
 {
     [CmdletBinding()]
     [Alias("sdr")]
     param
     (
-        [Parameter(ValueFromPipelineByPropertyName = $true,
-			ValueFromPipeline = $true,
-			Position=0,
-			Mandatory=$true
-		)]
-		[Alias("Name")]
-		$Cluster
-	)
+        [Parameter(ValueFromPipelineByPropertyName = $true, ValueFromPipeline = $true, Mandatory=$true)]
+        [Alias("Name")]
+        $Cluster
+    )
 
     Begin
     {
-		$vmhash = [vClass]::MakeHash('vm')
+        $vmhash = [vClass]::MakeHash('vm')
     }
 
     Process
     {
-		$drule = Get-DrsRule -Cluster $Cluster
-		foreach ($rule in $drule)
-		{
-			$vname = foreach ($vn in $rule.vmids)
-			{
-				$vmhash.$vn
-			}
-			$loopobj = [pscustomobject]@{
-				Name = $rule.Name
-				Cluster = $rule.cluster
-				VMId = $rule.VMIds
-				VM = $vname
-				Type = $rule.Type
-				Enabled = $rule.Enabled
-			}
-			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.DrsRuleInfo')
-			$loopobj
-			$vname = $null
-		}
+        $drule = Get-DrsRule -Cluster $Cluster
+        foreach ($rule in $drule)
+        {
+            $vname = foreach ($vn in $rule.vmids)
+            {
+                $vmhash.$vn
+            }
+            $lo = [vClass]::MakeSDRObj($vname , $rule)
+            $lo
+            $vname = $null
+        }
     }
 }
 
@@ -3014,6 +3062,94 @@ function Show-VMResource
 			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.VMInfo')
 			$loopobj
 		}
+    }
+}
+
+<#
+.SYNOPSIS
+Retrieves Memory, CPU, and NET statistics
+.DESCRIPTION
+Retrieves Memory, CPU, and NET usage statistics.  Memory and CPU are in PerCentAge; NET is in KBps.
+Returns an object of VM, CPUaverage, MEMaverage, NETaverage, CPUmaximum, MEMmaximum, and NETmaximum.
+.PARAMETER VM
+Output from VMWare PowerCLI Get-VM. See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
+.PARAMETER Days
+Number of Past Days to check.  Defaults to 30.  1 to 45 accepted.
+.EXAMPLE
+Retrieve statistical information of one VM, returning the object into a variable:
+$myVar = Get-VM -Name SYS01 | Show-VMStat
+.EXAMPLE
+Retrieve statistical information of two VMs, returning the object into a variable:
+$myVar = Get-VM -Name SYS02 , SYS03 | Show-VMStat
+.INPUTS
+VMWare PowerCLI VM from Get-VM:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
+.OUTPUTS
+[pscustomobject] SupSkiFun.VM.Stat.Info
+.LINK
+Get-Stat
+Get-StatType
+Get-StatInterval
+#>
+function Show-VMStat
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]] $VM,
+
+        [Parameter()][ValidateRange(1,45)] [int32] $Days = 30
+    )
+
+    Begin
+    {
+        $dt = Get-Date
+        $nd = "No Data"
+        $ohash = @{}
+        $st = @(
+            'cpu.usage.average'
+            'mem.usage.average'
+            'net.usage.average'
+        )
+        $sp = @{
+            Start = ($dt).AddDays(-$days)
+            Finish = $dt
+            MaxSamples = 10000
+            Stat = $st
+        }
+    }
+
+    Process
+    {
+        foreach ($v in $vm)
+        {
+            $ohash.Clear()
+            $r1 , $c1 , $t1 = $null
+            $r1 = Get-Stat -Entity $v @sp
+            foreach ($s in $st)
+            {
+                $t1 = $s.Split(".")[0].ToUpper()
+                $c1 = $r1 |
+                    Where-Object -Property MetricID -Match $s |
+                            Measure-Object -Property Value -Average -Maximum
+                if ($c1)
+                {
+                    $ohash.Add($($t1+"avg"),[math]::Round($c1.Average,2))
+                    $ohash.Add($($t1+"max"),[math]::Round($c1.Maximum,2))
+                }
+                else
+                {
+                    $ohash.Add($($t1+"avg"),$nd)
+                    $ohash.Add($($t1+"max"),$nd)
+                }
+            }
+            $lo = [VClass]::MakeSTObj($v.Name , $ohash)
+            $lo
+            $r1 , $c1 , $t1 = $null
+        }
     }
 }
 

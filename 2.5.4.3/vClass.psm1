@@ -21,8 +21,8 @@ class vClass
 
     static [pscustomobject] MakeObjSVVPG( [psobject[]] $vp )
     {
-        $lo = $null
-		$lo = [pscustomobject]@{
+        $obj = $null
+		$obj = [pscustomobject]@{
             PortGroup = $vp.Name
             VLAN = $vp.VLanId
             HostName = $vp.VirtualSwitch.VMHost.Name
@@ -30,7 +30,50 @@ class vClass
             VswitchMTU = $vp.VirtualSwitch.MTU
             VswitchPorts = $vp.VirtualSwitch.NumPorts
 		}
-		$lo.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroup.Info')
-		return $lo
+		$obj.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroup.Info')
+		return $obj
+    }
+
+    static [pscustomobject] MakeSDRObj ( [Array] $VName , [PSObject] $Rule )
+    {
+        $obj = [pscustomobject]@{
+            Name = $rule.Name
+            Cluster = $rule.cluster.ToSTring()
+            VMId = $rule.VMIds
+            VM = $vname
+            Type = $rule.Type.ToString()
+            Enabled = $rule.Enabled.ToString()
+        }
+        $obj.PSObject.TypeNames.Insert(0,'SupSkiFun.DrsRuleInfo')
+        return $obj
+    }
+
+    static [pscustomobject] MakeSTObj( [string] $vdata , [hashtable] $ohash )
+    {
+        $obj = [PSCustomObject]@{
+            VM = $vdata
+            CPUavg = $ohash.CPUavg
+            MEMavg = $ohash.MEMavg
+            NETavg = $ohash.NETavg
+            CPUmax = $ohash.CPUmax
+            MEMmax = $ohash.MEMmax
+            NETmax = $ohash.NETmax
+        }
+        $obj.PSObject.TypeNames.Insert(0,'SupSkiFun.VM.Stat.Info')
+        return $obj
+    }
+
+    static [pscustomobject] MakeVFSObj ( [string] $Name , [PSObject] $Info )
+    {
+        $obj = [pscustomobject]@{
+            HostName = $name
+            MountPoint = $info.MountPoint
+            PercentFree = $info.Free
+            Maximum = $info.Maximum
+            Used = $info.Used
+            RamDiskName = $info.RamdiskName
+        }
+        $obj.PSObject.TypeNames.Insert(0,'SupSkiFun.ESXi.HyperVisorFS.Info')
+        return $obj
     }
 }
