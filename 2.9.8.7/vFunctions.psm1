@@ -2295,7 +2295,7 @@ function Set-PereniallyReserved
                     $z2 = $x2.storage.core.device.setconfig.CreateArgs()
                     $z2.device = $d.device
                     $z2.perenniallyreserved = $state.ToLower()
-                    $x2.storage.core.device.setconfig.Invoke($z2)
+                    [void] $x2.storage.core.device.setconfig.Invoke($z2)
                 }
             }
         }
