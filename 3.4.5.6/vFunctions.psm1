@@ -1,45 +1,4 @@
-# MakeHash is a helper which makes hash tables for VM or ESXi or DStore
-Function MakeHash([string]$quoi)
-{
-	switch ($quoi)
-	{
-		'vm'
-		{
-			$vmq = Get-VM -Name *
-			$vmhash = @{}
-			$script:vmhash = foreach ($v in $vmq)
-			{
-				@{
-					$v.id = $v.name
-				}
-			}
-		}
-
-		'ex'
-		{
-			$exq = Get-VMHost -Name *
-			$exhash = @{}
-			$script:exhash = foreach ($e in $exq)
-			{
-				@{
-					$e.id = $e.name
-				}
-			}
-		}
-
-		'ds'
-		{
-			$dsq = Get-Datastore -Name *
-			$dshash = @{}
-			$script:dshash = foreach ($d in $dsq)
-			{
-				@{
-					$d.id = $d.name
-				}
-			}
-		}
-	}
-}
+using module .\vClass.psm1
 
 <#
 .SYNOPSIS
@@ -188,6 +147,11 @@ function Get-DataStoreLunID
 	[VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$Name
 	)
 
+    Begin
+    {
+        $exhash = [vClass]::MakeHash('ex')
+    }
+
     Process
     {
 		function MakeObj
@@ -206,15 +170,13 @@ function Get-DataStoreLunID
         $loopobj
 		}
 
-        MakeHash "ex"
-
 		foreach ($n in $name)
 		{
             $ds, $e2, $hs, $li, $ld = $null
             $hs = $n.ExtensionData.host
             foreach ($h in $hs)
             {
-                $e2 = Get-EsxCli -v2 -VMHost $exhash.$($h.key) -ErrorAction SilentlyContinue
+                $e2 = Get-EsxCli -v2 -VMHost $exhash.$($h.key.ToString()) -ErrorAction SilentlyContinue
                 if ($e2)
                 {
                     $ds = $n.ExtensionData.Info.Vmfs.Extent[0].DiskName
@@ -297,6 +259,124 @@ function Get-DataStorePercentageFree
 			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.DataStoreInfo')
 			$loopobj
 	}
+}
+
+<#
+.SYNOPSIS
+Retrieves file systems of the VMHost HyperVisor.
+.DESCRIPTION
+By default, retrieves file systems of the VMHost HyperVisor.  If an optional pattern is specified
+only file systems matching the pattern are retrieved; akin to -match.
+Returns an object of HostName, MountPoint, PercentFree, Maximum, Used, and RamDiskName.
+.PARAMETER VMHost
+Mandatory. Output from VMWare PowerCLI Get-VMHost. See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.PARAMETER Pattern
+Optional. If specified only returns mount points matching the pattern; akin to -match.  See Examples.
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.OUTPUTS
+PSCUSTOMOBJECT SupSkiFun.ESXi.HyperVisorFS.Info
+.EXAMPLE
+Returns an object of all HyperVisor File Systems from one VMHost:
+Get-VMHost -Name ESX01 | Get-ESXiHyperVisorFS
+.EXAMPLE
+Returns an object of HyperVisor File Systems with a mount point matching "tmp" from two VMHosts:
+Get-VMHost -Name ESX02 , ESX03 | Get-ESXiHyperVisorFS -Pattern tmp
+.EXAMPLE
+Returns an object of all HyperVisor File Systems from all VMHosts in a cluster, into a variable:
+$myVar = Get-VMHost -Location CLUS01 | Get-ESXiHyperVisorFS
+#>
+Function Get-ESXiHyperVisorFS
+{
+    [CmdletBinding()]
+    Param
+    (
+        [Parameter(ValueFromPipeline = $True, Mandatory = $True)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost,
+
+        [string] $Pattern
+    )
+
+    Process
+    {
+        foreach ($vmh in $vmhost)
+        {
+            $x2 = Get-EsxCli -V2 -VMHost $vmh
+            if (-not($pattern))
+            {
+                $z2 = $x2.system.visorfs.ramdisk.list.Invoke()
+            }
+            else
+            {
+                $z2 = $x2.system.visorfs.ramdisk.list.Invoke().where({$_.MountPoint -match $Pattern})
+            }
+            foreach ($z in $z2)
+            {
+                $lo = [VClass]::MakeVFSObj($vmh.Name , $z)
+                $lo
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+Retrieves install information from a running ESXi image on a VMHost.
+.DESCRIPTION
+Retrieves install information from a running ESXi image on a VMHost.
+Returns an object of HostName, Profile, Created, Vendor, Description, and VIBs.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost.  See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.ESXi.Info
+.EXAMPLE
+Retrieve information from one VMHost, returning an object into a variable:
+$MyVar = Get-VMHost -Name ESX01 | Get-ESXiInfo
+.EXAMPLE
+Retrieve information from two VMHosts, returning an object into a variable:
+$MyVar = Get-VMHost -Name ESX02 , ESX03 | Get-ESXiInfo
+#>
+function Get-ESXiInfo
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
+    )
+
+    Process
+    {
+        Function MakeObj
+        {
+            param($vhdata,$resdata)
+
+            $lo = [PSCustomObject]@{
+                HostName = $vhdata
+                Profile = $resdata.Name.Replace("(Updated)","").Trim()
+                Created = $resdata.CreationTime
+                Vendor = $resdata.Vendor
+                Description = $resdata.Description
+                VIBs = $resdata.Vibs
+            }
+            $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.ESXi.Info')
+            $lo
+        }
+
+        foreach ($vmh in $VMHost)
+        {
+                $xcli = Get-EsxCli -V2 -VMHost $vmh
+                $resp = $xcli.software.profile.get.Invoke()
+                MakeObj -vhdata $vmh.Name -resdata $resp
+        }
+    }
 }
 
 <#
@@ -431,10 +511,13 @@ function Get-PathSelectionPolicy
         [VMware.VimAutomation.ViCore.Types.V1.DatastoreManagement.VmfsDatastore[]]$DataStore
     )
 
+    Begin
+    {
+        $exhash = [vClass]::MakeHash('ex')
+    }
+
     Process
     {
-        MakeHash "ex"
-
         foreach ($ds in $DataStore)
         {
             $device = $ds.ExtensionData.Info.Vmfs.Extent.Diskname
@@ -443,7 +526,7 @@ function Get-PathSelectionPolicy
 
             foreach ($dsh in $dshosts)
             {
-                $vmh = $exhash.$($dsh.key)
+                $vmh = $exhash.$($dsh.key.ToString())
                 $e2 = Get-EsxCli -v2 -VMHost $vmh
                 $r2 = $e2.storage.nmp.device.list.Invoke($devq)
 
@@ -708,6 +791,53 @@ function Get-TagInfo
             GetTagInfo($vmhost)
         }
     }
+}
+
+<#
+.SYNOPSIS
+Produces an object of VAMI Health
+.DESCRIPTION
+Produces an object of VAMI Health, including Name, Status, Returns, Full Name of
+load, storage, swap, softwarepackages, databasestorage, applmgmt, system, and mem monitors.
+Status for softwarepackages (only) are:
+Red indicates that security updates are available.
+Orange indicates that non-security updates are available.
+Green indicates that there are no updates available.
+Gray indicates that there was an error retreiving information on software updates.
+.OUTPUTS
+pscustomobject SupSkiFun.VAMI.Health.Status
+.EXAMPLE
+Returns an object of VAMI Health into a variable:
+$MyObj = Get-VAMIHealth
+.EXAMPLE
+Returns an object of VAMI Health into a variable, using the Get-VAMIHealth alias:
+$MyObj = gvh
+#>
+function Get-VAMIHealth
+{
+    [CmdletBinding()]
+    [Alias("gvh")]
+    param()
+    Begin
+	{
+		$svcs = Get-CisService -Name com.vmware.appliance.health.*
+		$ti = (Get-Culture).TextInfo
+	}
+	Process
+    {
+		foreach ($svc in $svcs)
+		{
+ 			$r = ($svc.Help.get.Returns).Trim(".",1)
+			$loopobj = [pscustomobject]@{
+				Name = $svc.name.Split(".")[($svc.name.Split(".").count) -1]
+				Status = $svc.get()
+				Returns = $ti.ToTitleCase($r)
+				FullName = $svc.Name
+			}
+			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.VAMI.Health.Status')
+			$loopobj
+		}
+	}
 }
 
 <#
@@ -1310,22 +1440,29 @@ function Get-VSphereAlarm
 
 <#
 .SYNOPSIS
-Returns Alarm Enabled Status from VMHosts and Clusters
+Returns Alarm Enabled Status from VMs, VMHosts and / or Clusters
 .DESCRIPTION
-Returns an object of VMHosts and / or Clusters Names with Alarm Enabled Status.
-Requires VMHosts and / or Cluster objects to be piped in or specified as a parameter.
+Returns Alarm Enabled Status from VMs, VMHosts and / or Clusters via an object of
+Name, Enabled, and Type.  Requires VMs, VMHosts and / or Cluster objects to be piped in.
+.PARAMETER VM
+Output from VMWare PowerCLI Get-VM
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
 .PARAMETER VMHost
-Output from VMWare PowerCLI Get-Cluster
+Output from VMWare PowerCLI Get-VMHost
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .PARAMETER Cluster
 Output from VMWare PowerCLI Get-Cluster
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
 .INPUTS
-VMWare PowerCLI VMHost and / or Cluster Object from Get-VMHost and / or Get-Cluster:
+VMWare PowerCLI VM, VMHost and / or Cluster Object from Get-VM, Get-VMHost and / or Get-Cluster:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
 .OUTPUTS
- PSCustomObject SupSkiFun.AlarmConfig
+ PSCustomObject SupSkiFun.Alarm.Config
+.EXAMPLE
+Return information from several VMs:
+Get-VM -Name QA* | Get-VSphereAlarmConfig
 .EXAMPLE
 Return information from one VMHost:
 Get-VMHost -Name ESX01 | Get-VSphereAlarmConfig
@@ -1340,6 +1477,8 @@ Return information from all VMHosts and Clusters in the connected Virtual Center
 $host = Get-VMHost -Name *
 $clus = Get-Cluster -Name *
 $MyVar = Get-VSphereAlarmConfig -VMHost $host -Cluster $clus
+.LINK
+Set-VSphereAlarmConfig
 #>
 function Get-VSphereAlarmConfig
 {
@@ -1348,52 +1487,55 @@ function Get-VSphereAlarmConfig
     param
     (
         [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]] $VM ,
 
-		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]]$Cluster)
+        [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost ,
+
+        [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]] $Cluster
+    )
 
     Begin
-	{
-		$errmsg = "VMHost or Cluster Object Required.  Try:  Help Get-VSphereAlarmConfig -full"
- 	}
-
-	Process
     {
-		If(!($vmhost -or $cluster))
-		{
-			Write-Output $errmsg
-			break
-		}
+        $errmsg = "VM, VMHost, and / or Cluster Object Required. Try: Help Get-VSphereAlarmConfig -full"
+    }
 
-		If($vmhost)
-		{
-			foreach ($vmh in $vmhost)
-			{
-				$loopobj = [pscustomobject]@{
-					Name = $vmh.Name
-					Enabled = $vmh.ExtensionData.AlarmActionsEnabled
-					Type = "VMHost"
-				}
-				$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.AlarmConfig')
-				$loopobj
-			}
-		}
+    Process
+    {
+        If( -not ($vm -or $vmhost -or $cluster))
+        {
+            Write-Output $errmsg
+            break
+        }
 
-		If($cluster)
-		{
-			foreach ($clu in $cluster)
-			{
-				$loopobj = [pscustomobject]@{
-					Name = $clu.Name
-					Enabled = $clu.ExtensionData.AlarmActionsEnabled
-					Type = "Cluster"
-				}
-				$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.AlarmConfig')
-				$loopobj
-			}
-		}
-	}
+        If ($vm)
+        {
+            foreach ($obj in $vm)
+            {
+                $lo = [Vclass]::MakeGVSACObj($obj , "VM")
+                $lo
+            }
+        }
+
+        If ($vmhost)
+        {
+            foreach ($obj in $vmhost)
+            {
+                $lo = [Vclass]::MakeGVSACObj($obj , "VMHost")
+                $lo
+            }
+        }
+
+        If ($cluster)
+        {
+            foreach ($obj in $cluster)
+            {
+                $lo = [Vclass]::MakeGVSACObj($obj , "Cluster")
+                $lo
+            }
+        }
+    }
 }
 
 <#
@@ -1534,6 +1676,52 @@ function Get-VSphereStatus
 			$config = $null
 		}
 	}
+}
+
+<#
+.SYNOPSIS
+Retrieves status and settings of the WBEM Process from VMHost(s).
+.DESCRIPTION
+Returns an object containing WBEM Process settings, status, and HostName.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost. See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.WBEM.Info
+.EXAMPLE
+Retrieve WBEM Process information from two VMHosts, storing the object in a variable:
+$MyVar = Get-VMHost -Name ESX01 , ESX02 | Get-WBEMState
+.EXAMPLE
+Retrieve WBEM Process information from all VMHosts in a cluster, storing the object in a variable:
+$MyVar = Get-VMHost -Location Cluster15 | Get-WBEMState
+.LINK
+Set-WBEMState
+#>
+
+Function Get-WBEMState
+{
+    [CmdletBinding()]
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
+    )
+
+    Process
+    {
+        ForEach ($vmh in $VMHost)
+        {
+            $x2 = Get-EsxCli -V2 -VMHost $vmh
+            $v2 = $x2.system.wbem.get.Invoke()
+            $v2 |
+                Add-Member -Type NoteProperty -Name HostName -Value $vmh.name
+            $v2.PSObject.TypeNames.Insert(0,'SupSkiFun.WBEM.Info')
+            $v2
+        }
+    }
 }
 
 <#
@@ -1869,6 +2057,52 @@ function Invoke-VMHostHBARescan
 
 <#
 .SYNOPSIS
+Opens a Console Window on a VM.
+.DESCRIPTION
+Opens a Console Window on a VM.  Was written as an alternative to Open-VMConsoleWindow when
+Open-VMConsoleWindow was not functioning correctly after a Virtual Center upgrade.
+.PARAMETER VM
+Output from VMWare PowerCLI Get-VM.  See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
+.INPUTS
+VMWare PowerCLI VM from Get-VM:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
+.EXAMPLE
+Open a Console Window on a VM.
+Get-VM -Name Server01 | Open-Console
+.EXAMPLE
+Open a Console Window on multiple VMs.
+Get-VM -Name Test* | Open-Console
+#>
+Function Open-Console
+{
+    [CmdletBinding()]
+    Param
+    (
+        [Parameter(Mandatory = $true , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]] $VM
+    )
+
+    Begin
+    {
+        $modn = 'VMware.VimAutomation.Core'
+        $modb = (Get-Module -Name $modn -ListAvailable)[0].ModuleBase
+        $vexe = "$($modb)\net45\VMware Remote Console\vmrc.exe"
+    }
+
+    Process
+    {
+        foreach ($v in $vm)
+        {
+            $mkst = $v.ExtensionData.AcquireMksTicket()
+            $parm = "vmrc://$($v.VMHost.Name):902/?mksticket=$($mkst.Ticket)&thumbprint=$($mkst.SslThumbPrint)&path=$($mkst.CfgFile)"
+            & "$vexe" $parm
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Restarts Logging on a VMHOST
 .DESCRIPTION
 Restarts Logging (SysLog) on the VMHOST provided as an argument.
@@ -1940,11 +2174,13 @@ function Set-PathSelectionPolicy
         [ValidateSet("VMW_PSP_MRU", "VMW_PSP_FIXED", "VMW_PSP_RR")]$Policy
     )
 
+    Begin
+    {
+        $exhash = [vClass]::MakeHash('ex')
+    }
+
     Process
     {
-
-        MakeHash "ex"
-
         foreach ($ds in $DataStore)
         {
             if($PSCmdlet.ShouldProcess("$ds to $($policy)"))
@@ -1955,7 +2191,7 @@ function Set-PathSelectionPolicy
 
                 foreach ($dsh in $dshosts)
                 {
-                    $vmh = $exhash.$($dsh.key)
+                    $vmh = $exhash.$($dsh.key.ToString())
                     $e2 = Get-EsxCli -v2 -VMHost $vmh
                     $r2 = $e2.storage.nmp.device.list.Invoke($devq)
 
@@ -2059,7 +2295,7 @@ function Set-PereniallyReserved
                     $z2 = $x2.storage.core.device.setconfig.CreateArgs()
                     $z2.device = $d.device
                     $z2.perenniallyreserved = $state.ToLower()
-                    $x2.storage.core.device.setconfig.Invoke($z2)
+                    [void] $x2.storage.core.device.setconfig.Invoke($z2)
                 }
             }
         }
@@ -2068,10 +2304,13 @@ function Set-PereniallyReserved
 
 <#
 .SYNOPSIS
-Enables or Disables Alarms from VMHosts and Clusters
+Enables or Disables Alarms from VMs, VMHosts and / or Clusters
 .DESCRIPTION
-Enables or Disables Alarms from VMHosts and Clusters.
-Requires VMHosts and / or Cluster objects to be piped in or specified as a parameter.
+Enables or Disables Alarms from VMs, VMHosts and / or Clusters
+Requires VMs, VMHosts and / or Cluster objects to be piped in.
+.PARAMETER VM
+Output from VMWare PowerCLI Get-VM
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
@@ -2081,9 +2320,13 @@ Output from VMWare PowerCLI Get-Cluster
 .PARAMETER State
 Set for desired state of alarm; either Enabled or Disabled
 .INPUTS
-VMWare PowerCLI VMHost and / or Cluster Object from Get-VMHost and / or Get-Cluster:
+VMWare PowerCLI VM, VMHost and / or Cluster Object from Get-VM, Get-VMHost and / or Get-Cluster:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster]
+.EXAMPLE
+Disable alarms for two VMs:
+Get-VM -Name Server01 , Server18 | Set-VSphereAlarmConfig -State Disabled
 .EXAMPLE
 Enable alarms for one VMHost:
 Get-VMHost -Name ESX01 | Set-VSphereAlarmConfig -State Enabled
@@ -2097,78 +2340,169 @@ Get-VMHost -Name ESX4* | Set-VSphereAlarmConfig -State Enabled -Confirm:$false
 Disable alarms for all VMHosts and Clusters in the connected Virtual Center:
 $host = Get-VMHost -Name *
 $clus = Get-Cluster -Name *
-Set-VSphereAlarmConfig -VMHost $host -Cluster $clus	-State Disabled
+Set-VSphereAlarmConfig -VMHost $host -Cluster $clus -State Disabled
+.LINK
+Get-VSphereAlarmConfig
 #>
 function Set-VSphereAlarmConfig
 {
-	[CmdletBinding(SupportsShouldProcess=$true,
-		ConfirmImpact='high')]
+    [CmdletBinding(SupportsShouldProcess = $true , ConfirmImpact = 'medium')]
     param
     (
-		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
+        [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]] $VM ,
 
-		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]]$Cluster,
+        [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost ,
 
-		[Parameter(Mandatory = $true)]
-		[ValidateSet("Enabled" , "Disabled")]
-		[string]$State
-	)
+        [Parameter(Mandatory = $false , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.Cluster[]] $Cluster ,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Enabled" , "Disabled")]
+        [string] $State
+    )
 
     Begin
     {
-		$errmsg = "VMHost or Cluster Object Required.  Try:  Help Set-VSphereAlarmConfig -full"
+        $errmsg = "VM, VMHost, and / or Cluster Object Required. Try: Help Set-VSphereAlarmConfig -full"
     }
 
     Process
     {
-		If(!($vmhost -or $cluster))
-		{
-			Write-Output $errmsg
-			break
-		}
-		Else
-		{
-			$alarmgr = Get-View AlarmManager
-		}
+        If ( -not ($vm -or $vmhost -or $cluster))
+        {
+            Write-Output $errmsg
+            break
+        }
+        Else
+        {
+            $alarmgr = Get-View AlarmManager
+        }
 
-		If($vmhost)
-		{
-			foreach ($vmh in $vmhost)
-			{
-				if($PSCmdlet.ShouldProcess("$vmh to $($state)"))
-				{
-					if($state -ieq "Enabled")
-					{
-						$alarmgr.EnableAlarmActions($vmh.Extensiondata.MoRef,$true)
-					}
-					elseif($state -ieq "Disabled")
-					{
-						$alarmgr.EnableAlarmActions($vmh.Extensiondata.MoRef,$false)
-					}
-				}
-			}
-		}
+        Function SetState
+        {
+            param($Item , $State)
 
-		If($cluster)
-		{
-			foreach ($clu in $cluster)
-			{
-				if($PSCmdlet.ShouldProcess("$clu to $($state)"))
-				{
-					if($state -ieq "Enabled")
-					{
-						$alarmgr.EnableAlarmActions($clu.Extensiondata.MoRef,$true)
-					}
-					elseif($state -ieq "Disabled")
-					{
-						$alarmgr.EnableAlarmActions($clu.Extensiondata.MoRef,$false)
-					}
-				}
-			}
-		}
-	}
+            if ($state -eq "Enabled")
+            {
+                $state = $true
+            }
+            elseif ($state -eq "Disabled")
+            {
+                $state = $false
+            }
+            $alarmgr.EnableAlarmActions($item , $state)
+        }
+
+        If ($vm)
+        {
+            foreach ($v in $vm)
+            {
+                if($PSCmdlet.ShouldProcess("$v to $($state)"))
+                {
+                    SetState -Item $v.Extensiondata.MoRef -State $State
+                }
+            }
+        }
+
+        If ($vmhost)
+        {
+            foreach ($vmh in $vmhost)
+            {
+                if($PSCmdlet.ShouldProcess("$vmh to $($state)"))
+                {
+                    SetState -Item $vmh.Extensiondata.MoRef -State $State
+                }
+            }
+        }
+
+        If ($cluster)
+        {
+            foreach ($clu in $cluster)
+            {
+                if($PSCmdlet.ShouldProcess("$clu to $($state)"))
+                {
+                    SetState -Item $clu.Extensiondata.MoRef -State $State
+                }
+
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+Enables or disables the WBEM service on VMHost(s).
+.DESCRIPTION
+Enables or disables the WBEM service on VMHost(s).  See Examples.
+Returns no output.  Confirm settings with Get-WBEMState.
+.PARAMETER VMHost
+Output from VMWare PowerCLI Get-VMHost. See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.PARAMETER Enabled
+Switch. If specified, enables the WBEM service.
+.PARAMETER Disabled
+Switch. If specified, disables the WBEM service.
+.INPUTS
+VMWare PowerCLI VMHost from Get-VMHost:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
+.EXAMPLE
+Enables the WBEM service on two VMHosts:
+Get-VMHost -Name ESX01 , ESX02 | Set-WBEMState -Enabled
+.EXAMPLE
+Disables the WBEM service on two VMHosts:
+Get-VMHost -Name ESX01 , ESX02 | Set-WBEMState -Disabled
+.LINK
+Get-WBEMState
+#>
+
+Function Set-WBEMState
+{
+    [CmdletBinding(SupportsShouldProcess = $true , ConfirmImpact = 'high')]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost,
+
+        [Parameter(ParameterSetName = "Enabled")]
+        [switch] $Enabled,
+
+        [Parameter(ParameterSetName = "Disabled")]
+        [switch] $Disabled
+    )
+
+    Begin
+    {
+        <#
+            $State maps switch to boolean.  $Setting clarifies Should Process message.
+        #>
+        If ($Enabled)
+        {
+            $State = $true
+            $Setting = "Enabled"
+        }
+        elseif ($Disabled)
+        {
+            $State = $false
+            $Setting = "Disabled"
+        }
+    }
+
+    Process
+    {
+        ForEach ($vmh in $VMHost)
+        {
+            if ($pscmdlet.ShouldProcess("$vmh to $Setting"))
+            {
+                $x2 = Get-EsxCli -V2 -VMHost $vmh
+                $y2 = $x2.system.wbem.set.CreateArgs()
+                $y2.enable = $State
+                [void] $x2.system.wbem.set.Invoke($y2)
+            }
+        }
+    }
 }
 
 <#
@@ -2236,7 +2570,7 @@ Outputs DRS rules for specified clusters
 Outputs an object of DRS Rule Name, cluster, VMIds, VM Name, Type and Enabled for specified clusters.
 Alias = sdr
 .PARAMETER Cluster
-Mandatory.  Cluster(s) to query for DRS rules.  Can manually enter or pipe output from VmWare Get-Cluster.
+Mandatory. Cluster(s) to query for DRS rules. Can manually enter or pipe output from VmWare Get-Cluster.
 .OUTPUTS
 PSCUSTOMOBJECT SupSkiFun.PortGroupInfo
 .EXAMPLE
@@ -2246,47 +2580,35 @@ $MyVar = Show-DrsRule -Cluster cluster09
 Retrieve DRS rules for all clusters, using the Show-DrsRule alias, placing the object into a variable:
 $MyVar = Get-Cluster -Name * | sdr
 #>
-function Show-DrsRule
+Function Show-DrsRule
 {
     [CmdletBinding()]
     [Alias("sdr")]
     param
     (
-        [Parameter(ValueFromPipelineByPropertyName = $true,
-			ValueFromPipeline = $true,
-			Position=0,
-			Mandatory=$true
-		)]
-		[Alias("Name")]
-		$Cluster
-	)
+        [Parameter(ValueFromPipelineByPropertyName = $true, ValueFromPipeline = $true, Mandatory=$true)]
+        [Alias("Name")]
+        $Cluster
+    )
 
     Begin
     {
-		MakeHash "vm"
+        $vmhash = [vClass]::MakeHash('vm')
     }
 
     Process
     {
-		$drule = Get-DrsRule -Cluster $Cluster
-		foreach ($rule in $drule)
-		{
-			$vname = foreach ($vn in $rule.vmids)
-			{
-				$vmhash.$vn
-			}
-			$loopobj = [pscustomobject]@{
-				Name = $rule.Name
-				Cluster = $rule.cluster
-				VMId = $rule.VMIds
-				VM = $vname
-				Type = $rule.Type
-				Enabled = $rule.Enabled
-			}
-			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.DrsRuleInfo')
-			$loopobj
-			$vname = $null
-		}
+        $drule = Get-DrsRule -Cluster $Cluster
+        foreach ($rule in $drule)
+        {
+            $vname = foreach ($vn in $rule.vmids)
+            {
+                $vmhash.$vn
+            }
+            $lo = [vClass]::MakeSDRObj($vname , $rule)
+            $lo
+            $vname = $null
+        }
     }
 }
 
@@ -2626,6 +2948,63 @@ function Show-SS
 
 <#
 .SYNOPSIS
+Retrieves detailed information from submitted tasks.
+.DESCRIPTION
+Retrieves detailed information from submitted tasks.  Returns an object of Name, Description,
+ID, State, IsCancelable, PercentComplete, Start, Finish, UserName, EntityName, and EntityID.
+.PARAMETER Task
+Output from VMWare PowerCLI Get-Task.  See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Task]
+.INPUTS
+VMWare PowerCLI Task from Get-Task:
+[VMware.VimAutomation.ViCore.Types.V1.Task]
+.OUTPUTS
+[PSCUSTOMOBJECT] SupSkiFun.Task.Info
+.EXAMPLE
+Retrieve information from all running tasks, returning an object into a variable:
+$MyVar = Get-Task -Status Running | Show-TaskInfo
+.EXAMPLE
+Retrieve information from all relocation tasks, returning an object into a variable:
+$MyVar = Get-Task | Where-Object -Property Name -Match reloc | Show-TaskInfo
+.EXAMPLE
+Retrieve information from all recent tasks, returning an object into a variable:
+$MyVar = Get-Task | Show-TaskInfo
+#>
+function Show-TaskInfo
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Task[]] $Task
+    )
+
+    Process
+    {
+        foreach ($t in $task)
+        {
+            $lo = [pscustomobject]@{
+                Name = $t.Name
+                Description = $t.Description
+                ID = $t.Id
+                State = $t.State
+                IsCancelable = $t.IsCancelable
+                PercentComplete = $t.PercentComplete
+                Start = $t.StartTime
+                Finish = $t.FinishTime
+                UserName = $t.ExtensionData.Info.Reason.UserName
+                EntityName = $t.ExtensionData.Info.EntityName
+                EntityID = $t.ExtensionData.Info.Entity
+            }
+            $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.Task.Info')
+            $lo
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Queries for VMs with a USB Controller Installed
 .DESCRIPTION
 Returns an object of VM, Notes, VMHost and USB from VMs with a USB Controller Installed
@@ -2681,6 +3060,66 @@ function Show-USBController
 
 <#
 .SYNOPSIS
+Outputs all Permissions with their affiliated Role and Privileges.
+.DESCRIPTION
+Amalgamates all Permissions with their affiliated Role and Privileges.
+Returns an object of Role, RoleIsSystem, Principal, Entity, EntityID, Propogate, PrincipalIsGroup, and Privilege.
+.NOTES
+Optimal for archiving and for (re)creating roles and permissions.  Convertable to JSON (see example).
+A privilege defines right(s) to perform actions and read properties.
+A role is a set of privileges.
+A permission gives a Principal (user or group) a role for a specific entity.
+.OUTPUTS
+PSCUSTOMOBJECT SupSkiFun.Permissions.Info
+.EXAMPLE
+Return the object into a variable:
+$MyVar = Show-VIPermission
+.EXAMPLE
+Return JSON into a variable:
+$MyVar = Show-VIPermission | ConvertTo-Json -Depth 3
+.LINK
+Get-VIPermission
+Get-VIPrivilege
+Get-VIRole
+New-VIPermission
+#>
+Function Show-VIPermission
+{
+    [CmdletBinding()]
+    Param()
+
+    Begin
+    {
+        $hh = @{}
+        $qq = Get-VIPermission
+        $rr = Get-VIRole
+    }
+
+    Process
+    {
+        Function MakePrivHash
+        {
+            foreach ($r in $rr)
+            {
+                ($p = Get-VIPrivilege -ErrorAction SilentlyContinue -Role $r).Name |
+                    Out-Null
+                # hash with array value.  [0] is RoleIsSystem true/false. [1] is array of privileges
+                $hh.add($r.Name,@($r.IsSystem,$p.Name))
+            }
+        }
+
+        MakePrivHash
+
+        foreach ($q in $qq)
+        {
+            $lo = [vClass]::MakePPRObj($q , $hh.($q.Role))
+            $lo
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Obtains basic network settings from VMHost(s)
 .DESCRIPTION
 Returns an object of HostName, IP, NTPServer, DNSServer, SearchDomain and IPv6Enabled from VMHosts
@@ -2725,7 +3164,6 @@ function Show-VMHostNetworkInfo
 			}
 			$lo = [pscustomobject]@{
 				HostName = $vmh.Name
-				#IP = $n.VirtualNic.IP property will be deprecated.
 				IP = $ipv
 				NTPServer = $p
 				DNSServer = $n.DnsAddress
@@ -2741,85 +3179,41 @@ function Show-VMHostNetworkInfo
 <#.Synopsis
 Obtains Port Groups from ESXi Hosts
 .DESCRIPTION
-Returns an object of PortGroups, Hostname(s), Vswitches and VLANs from ESXi Hosts by default.
-Requires input from Get-VMHost.  Alias = svvpg
-Optionally return MTU and Number of Ports from the Vswitch with the -Full Parameter
+Returns an object of PortGroup, VLAN, HostName, Vswitch, VswitchMTU, and VswitchPorts.
 .PARAMETER VMHost
 Output from VMWare PowerCLI Get-VMHost.  See Examples.
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
-.PARAMETER Full
-Optional.  If specified returns MTU and Number of Ports, in addition to the default output.
 .INPUTS
 VMWare PowerCLI VMHost from Get-VMHost:
 [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost]
 .OUTPUTS
-PSCUSTOMOBJECT SupSkiFun.PortGroupInfo
+PSCUSTOMOBJECT SupSkiFun.PortGroup.Info
 .EXAMPLE
 Return Port Group Object from one ESXi Host:
 Get-VMHost -Name ESX01 | Show-VMHostVirtualPortGroup
 .EXAMPLE
 Place Port Group Object from two ESXi Hosts into a variable:
 $MyVar = Get-VMHost -Name ESX03, ESX04 | Show-VMHostVirtualPortGroup
-.EXAMPLE
-Place Port Group Object from multiple ESXi Hosts into a variable using the Show-VMHostVirtualPortGroup alias:
-$MyVar = Get-VMHost -Location CLUSTER04 | svvpg
-.EXAMPLE
-Include MTU and Port Number with the default output using the -Full Parameter:
-$MyVar = Get-VMHost -Name ESX07 | Show-VMHostVirtualPortGroup -Full
 #>
 function Show-VMHostVirtualPortGroup
 {
     [CmdletBinding()]
-    [Alias("svvpg")]
+
     param
     (
-		[Parameter(Mandatory = $false , ValueFromPipeline = $true)]
-        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]]$VMHost,
-		[switch]$Full
+		[Parameter(Mandatory = $true , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
  	)
-
-	    Begin
-    {
-		$errmsg = "VMHost Object Required.  Try:  Help Show-VMHostVirtualPortGroup -full"
-    }
 
     Process
     {
-		If(!($vmhost))
-		{
-			Write-Output $errmsg
-			break
-		}
-
-		MakeHash "ex"
 		$vpg = $vmhost |
-			Get-VirtualPortGroup -Name *
-
-		foreach ($vp in $vpg)
-		{
-			if($full)
-			{
-				$loopobj = [pscustomobject]@{
-					PortGroup = $vp.Name
-					VLAN = $vp.VLanId
-					HostName = $exhash.($vp.VMHostId)
-					Vswitch = $vp.VirtualSwitchName
-					VswitchMTU = $vp.VirtualSwitch.MTU
-					VswitchPorts = $vp.VirtualSwitch.NumPorts
-				}
-			}
- 			else
-			{
-				$loopobj = [pscustomobject]@{
-					PortGroup = $vp.Name
-					VLAN = $vp.VLanId
-					Vswitch = $vp.VirtualSwitchName
-					HostName = $exhash.($vp.VMHostId)
-				}
-			}
-		$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.PortGroupInfo')
-		$loopobj
-		}
+            Get-VirtualPortGroup -Name *
+        foreach ($vp in $vpg)
+        {
+           $lo =  [vClass]::MakeObjSVVPG($vp)
+           $lo
+        }
     }
 }
 
@@ -2931,6 +3325,94 @@ function Show-VMResource
 			$loopobj.PSObject.TypeNames.Insert(0,'SupSkiFun.VMInfo')
 			$loopobj
 		}
+    }
+}
+
+<#
+.SYNOPSIS
+Retrieves Memory, CPU, and NET statistics
+.DESCRIPTION
+Retrieves Memory, CPU, and NET usage statistics.  Memory and CPU are in PerCentAge; NET is in KBps.
+Returns an object of VM, CPUaverage, MEMaverage, NETaverage, CPUmaximum, MEMmaximum, and NETmaximum.
+.PARAMETER VM
+Output from VMWare PowerCLI Get-VM. See Examples.
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
+.PARAMETER Days
+Number of Past Days to check.  Defaults to 30.  1 to 45 accepted.
+.EXAMPLE
+Retrieve statistical information of one VM, returning the object into a variable:
+$myVar = Get-VM -Name SYS01 | Show-VMStat
+.EXAMPLE
+Retrieve statistical information of two VMs, returning the object into a variable:
+$myVar = Get-VM -Name SYS02 , SYS03 | Show-VMStat
+.INPUTS
+VMWare PowerCLI VM from Get-VM:
+[VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine]
+.OUTPUTS
+[pscustomobject] SupSkiFun.VM.Stat.Info
+.LINK
+Get-Stat
+Get-StatType
+Get-StatInterval
+#>
+function Show-VMStat
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        [Parameter(Mandatory = $true , ValueFromPipeline = $true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VirtualMachine[]] $VM,
+
+        [Parameter()][ValidateRange(1,45)] [int32] $Days = 30
+    )
+
+    Begin
+    {
+        $dt = Get-Date
+        $nd = "No Data"
+        $ohash = @{}
+        $st = @(
+            'cpu.usage.average'
+            'mem.usage.average'
+            'net.usage.average'
+        )
+        $sp = @{
+            Start = ($dt).AddDays(-$days)
+            Finish = $dt
+            MaxSamples = 10000
+            Stat = $st
+        }
+    }
+
+    Process
+    {
+        foreach ($v in $vm)
+        {
+            $ohash.Clear()
+            $r1 , $c1 , $t1 = $null
+            $r1 = Get-Stat -Entity $v @sp
+            foreach ($s in $st)
+            {
+                $t1 = $s.Split(".")[0].ToUpper()
+                $c1 = $r1 |
+                    Where-Object -Property MetricID -Match $s |
+                            Measure-Object -Property Value -Average -Maximum
+                if ($c1)
+                {
+                    $ohash.Add($($t1+"avg"),[math]::Round($c1.Average,2))
+                    $ohash.Add($($t1+"max"),[math]::Round($c1.Maximum,2))
+                }
+                else
+                {
+                    $ohash.Add($($t1+"avg"),$nd)
+                    $ohash.Add($($t1+"max"),$nd)
+                }
+            }
+            $lo = [VClass]::MakeSTObj($v.Name , $ohash)
+            $lo
+            $r1 , $c1 , $t1 = $null
+        }
     }
 }
 
