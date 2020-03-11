@@ -797,8 +797,10 @@ function Get-TagInfo
 .SYNOPSIS
 Produces an object of VAMI Health
 .DESCRIPTION
-Produces an object of VAMI Health, including Name, Status, Returns, Full Name of
+Produces an object of VAMI Health, including Name, Status, Returns and Full Name of
 load, storage, swap, softwarepackages, databasestorage, applmgmt, system, and mem monitors.
+Requires connection to CIS Server; see Connect-CisServer.
+.NOTES
 Status for softwarepackages (only) are:
 Red indicates that security updates are available.
 Orange indicates that non-security updates are available.
@@ -812,18 +814,28 @@ $MyObj = Get-VAMIHealth
 .EXAMPLE
 Returns an object of VAMI Health into a variable, using the Get-VAMIHealth alias:
 $MyObj = gvh
+.LINK
+Connect-CisServer
 #>
 function Get-VAMIHealth
 {
     [CmdletBinding()]
     [Alias("gvh")]
     param()
+    
     Begin
 	{
-		$svcs = Get-CisService -Name com.vmware.appliance.health.*
-		$ti = (Get-Culture).TextInfo
+        if(!$global:DefaultCisServers)
+        {
+            Write-Output "Terminating. Session is not connected to a CIS server.  See Connect-CisServer."
+            break
+        }
+        
+        $svcs = Get-CisService -Name com.vmware.appliance.health.*
+        $ti = (Get-Culture).TextInfo
 	}
-	Process
+
+    Process
     {
 		foreach ($svc in $svcs)
 		{
