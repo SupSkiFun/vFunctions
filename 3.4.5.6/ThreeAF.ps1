@@ -17,6 +17,8 @@ Get-VMHost -Name ESX12 | Get-VMHostHA
 .EXAMPLE
 Returns VMHost High Availability (HA) Status from two ESX Hosts:
 Get-VMHost -Name ESX01 , ESX03 | Get-VMHostHA
+.LINK
+Reset-VMHostHA
 #>
 function Get-VMHostHA
 {
@@ -45,7 +47,8 @@ function Get-VMHostHA
 .SYNOPSIS
 Reconfigures High Availability (HA)
 .DESCRIPTION
-Reconfigures High Availability (HA) for specified VMHosts(s) via task.  No Output by Default.
+Reconfigures High Availability (HA) for specified VMHosts(s) via task.
+Returns an object of VMHost, Name, Description, Start and ID.
 .PARAMETER VMHost
 Output from Get-VMHost from Vmware.PowerCLI
 VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
@@ -53,17 +56,19 @@ VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 Results of Get-VMHost from Vmware.PowerCLI
 VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .OUTPUTS
-None
+ [pscustomobject] SupSkiFun.VMHost.HA.Status
 .EXAMPLE
 Reconfigures High Availability (HA) on one ESX Host:
 Get-VMHost -Name ESX12 | Reset-VMHostHA
 .EXAMPLE
-Reconfigures High Availability (HA) on two ESX Hosts:
-Get-VMHost -Name ESX01 , ESX03 | Reset-VMHostHA
+Reconfigures High Availability (HA) on two ESX Hosts, returning the object into a variable:
+$myVar = Get-VMHost -Name ESX01 , ESX03 | Reset-VMHostHA
+.LINK
+Get-VMHostHA
 #>
 function Reset-VMHostHA
 {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true , ConfirmImpact = 'high')]
     param
     (
         [Parameter(ValueFromPipeline=$true)]
@@ -74,7 +79,21 @@ function Reset-VMHostHA
     {
         foreach ($vmh in $vmhost)
         {
-            $vmh.ExtensionData.ReconfigureHostForDAS_Task()
+            if($PSCmdlet.ShouldProcess($vmh , "Reconfigure HA"))
+            {
+                $t1 = $vmh.ExtensionData.ReconfigureHostForDAS_Task()
+                Start-Sleep -Seconds 1
+                $t2 = Get-Task -Id $t1
+                $lo = [PSCustomObject]@{
+                    VMHost = $vmh.Name
+                    Name = $t2.Name
+                    Description = $t2.Description
+                    Start = $t2.StartTime
+                    ID = $t2.ID
+                }
+            $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.VMHost.HA.Task')
+            $lo
+            }
         }
     }
 }
@@ -92,15 +111,6 @@ function Clear-VSphereAlarm
 
     https://communities.vmware.com/thread/623890
 
-    #>
-
-}
-
-function Get-VMHostHA
-{
-    <#
-        $vh1 = Get-VMhost 
-        $vh1.ExtensionData.Summary.runtime.DasHostState.State
     #>
 
 }
