@@ -47,8 +47,10 @@ function Get-VMHostHA
 .SYNOPSIS
 Reconfigures High Availability (HA)
 .DESCRIPTION
-Reconfigures High Availability (HA) for specified VMHosts(s) via task.
-Returns an object of VMHost, Name, Description, Start and ID.
+Reconfigures High Availability (HA) for specified VMHosts(s) via task.  Returns
+task information as an object of VMHost, Name, Description, Start and ID.
+.NOTES
+Obtain further task information by querying the ID of the returned object with Get-Task -Id
 .PARAMETER VMHost
 Output from Get-VMHost from Vmware.PowerCLI
 VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
@@ -63,7 +65,12 @@ Get-VMHost -Name ESX12 | Reset-VMHostHA
 .EXAMPLE
 Reconfigures High Availability (HA) on two ESX Hosts, returning the object into a variable:
 $myVar = Get-VMHost -Name ESX01 , ESX03 | Reset-VMHostHA
+.EXAMPLE
+Reconfigures High Availability (HA) on one ESX Host, then queries the running task:
+$myVar = Get-VMHost -Name ESX12 | Reset-VMHostHA -Confirm:$false
+Get-Task -Id $myVar.ID
 .LINK
+Get-Task
 Get-VMHostHA
 #>
 function Reset-VMHostHA
@@ -82,7 +89,7 @@ function Reset-VMHostHA
             if($PSCmdlet.ShouldProcess($vmh , "Reconfigure HA"))
             {
                 $t1 = $vmh.ExtensionData.ReconfigureHostForDAS_Task()
-                Start-Sleep -Seconds 1
+                Start-Sleep -Milliseconds 500
                 $t2 = Get-Task -Id $t1
                 $lo = [PSCustomObject]@{
                     VMHost = $vmh.Name
