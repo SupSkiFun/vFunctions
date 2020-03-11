@@ -1,10 +1,54 @@
 <#
 .SYNOPSIS
+Returns VMHost High Availability (HA) Status
+.DESCRIPTION
+Returns VMHost High Availability (HA) Status
+.PARAMETER VMHost
+Output from Get-VMHost from Vmware.PowerCLI
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
+.INPUTS
+Results of Get-VMHost from Vmware.PowerCLI
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
+.OUTPUTS
+[pscustomobject] SupSkiFun.VMHost.HA.Status
+.EXAMPLE
+Returns VMHost High Availability (HA) Status from one ESX Host:
+Get-VMHost -Name ESX12 | Get-VMHostHA
+.EXAMPLE
+Returns VMHost High Availability (HA) Status from two ESX Hosts:
+Get-VMHost -Name ESX01 , ESX03 | Get-VMHostHA
+#>
+function Get-VMHostHA
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(ValueFromPipeline=$true)]
+        [VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost[]] $VMHost
+    )
+
+    Process
+    {
+        foreach ($vmh in $vmhost)
+        {
+            $lo = [pscustomobject]@{
+                Name = $vmh.Name
+                Status = $vmh.ExtensionData.Summary.runtime.DasHostState.State
+            }
+            $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.VMHost.HA.Status')
+            $lo
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Reconfigures High Availability (HA)
 .DESCRIPTION
 Reconfigures High Availability (HA) for specified VMHosts(s) via task.  No Output by Default.
 .PARAMETER VMHost
-Piped output of Get-VMHost from Vmware.PowerCLI
+Output from Get-VMHost from Vmware.PowerCLI
+VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 .INPUTS
 Results of Get-VMHost from Vmware.PowerCLI
 VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
@@ -12,12 +56,12 @@ VMware.VimAutomation.ViCore.Types.V1.Inventory.VMHost
 None
 .EXAMPLE
 Reconfigures High Availability (HA) on one ESX Host:
-Get-VMHost -Name ESX12 | Invoke-HAReconfigure
+Get-VMHost -Name ESX12 | Reset-VMHostHA
 .EXAMPLE
 Reconfigures High Availability (HA) on two ESX Hosts:
-Get-VMHost -Name ESX01 , ESX03 | Invoke-HAReconfigure
+Get-VMHost -Name ESX01 , ESX03 | Reset-VMHostHA
 #>
-function Invoke-HAReconfigure
+function Reset-VMHostHA
 {
     [CmdletBinding()]
     param
@@ -52,10 +96,11 @@ function Clear-VSphereAlarm
 
 }
 
-function Invoke-HAReconfigureSource
+function Get-VMHostHA
 {
     <#
-        Get-VMhost | Sort Name | %{$_.ExtensionData.ReconfigureHostForDAS()} DAS_Task alsoâ€¦.
+        $vh1 = Get-VMhost 
+        $vh1.ExtensionData.Summary.runtime.DasHostState.State
     #>
 
 }
