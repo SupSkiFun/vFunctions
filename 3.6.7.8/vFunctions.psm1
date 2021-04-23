@@ -3393,7 +3393,7 @@ Function Show-VMHostPhysicalNIC
             Get-VMHostNetworkAdapter -Physical
         foreach ($n in $vmn)
         {
-            $lo = [MakeVMPNObj]::MakeObj($n)
+            $lo = [vClass]::MakeVMPNObj($n)
             $lo
         }
     }
