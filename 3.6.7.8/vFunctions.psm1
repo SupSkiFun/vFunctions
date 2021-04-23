@@ -3389,7 +3389,7 @@ Function Show-VMHostPhysicalNIC
 
     Process
     {
-        $vmn = $VMHost | 
+        $vmn = $VMHost |
             Get-VMHostNetworkAdapter -Physical
         foreach ($n in $vmn)
         {
