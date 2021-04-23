@@ -1,5 +1,16 @@
 class vClass
 {
+    static [pscustomobject] MakeGVSACObj ( [psobject] $obj , [string] $type )
+    {
+        $lo = [pscustomobject]@{
+            Name = $obj.Name
+            Enabled = $obj.ExtensionData.AlarmActionsEnabled
+            Type = $type
+        }
+        $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.Alarm.Config')
+        return $lo
+    }
+
     static [hashtable] MakeHash( [string] $quoi )
     {
         $src = $null
@@ -91,5 +102,17 @@ class vClass
         }
         $obj.PSObject.TypeNames.Insert(0,'SupSkiFun.ESXi.HyperVisorFS.Info')
         return $obj
+    }
+
+    static [pscustomobject] MakeVMPNObj ( [psobject] $n)
+    {
+        $lo = [pscustomobject]@{
+            VMHost = $n.VmHost.Name
+            NIC = $n.Name
+            Speed = $n.extensiondata.linkspeed.SpeedMB
+            Duplex = $n.extensiondata.linkspeed.Duplex
+        }
+        $lo.PSObject.TypeNames.Insert(0,'SupSkiFun.VMHost.Physical.NIC.Info')
+        return $lo
     }
 }
